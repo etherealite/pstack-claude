@@ -150,3 +150,13 @@ git worktree add ../pstack-local-dev-docs docs/local-development
 ```
 
 Edit and commit this guide in that worktree. Push `docs/local-development` only to `origin`. Keep its history separate from the plugin branches and upstream.
+
+## Run the Codex live test
+
+Run the test from the plugin checkout containing `tests/codex/live.test.mjs`. The documentation worktree contains only this guide.
+
+`tests/codex/live.test.mjs` runs one live Codex session to check native plugin installation and skill invocation with a minimal fixture. It follows the [official plugin evaluation example](https://developers.openai.com/cookbook/examples/partners/harness_aware_plugin_evals/harness_aware_plugin_evals) and [plugin packaging documentation](https://developers.openai.com/plugins/build/plugins). It checks an exact random marker stored only in the skill body. This covers plugin discovery and invocation; pstack workflows, delegation, and hooks need separate cases.
+
+The test skips unless explicitly enabled. With `codex` on `PATH`, use `PSTACK_CODEX_LIVE=1 bun test tests/codex/live.test.mjs` in a POSIX shell, or `$env:PSTACK_CODEX_LIVE='1'; bun test tests/codex/live.test.mjs` in PowerShell. It uses an isolated `CODEX_HOME` and copies only `auth.json` from the original `CODEX_HOME` or `~/.codex`, or logs in with `CODEX_API_KEY` or `OPENAI_API_KEY`. Missing credentials or CLI fail an enabled run. The default model is `gpt-6-luna` at `xhigh` effort; `PSTACK_CODEX_LIVE_MODEL` overrides the model.
+
+`PSTACK_CODEX_LIVE_KEEP=1` preserves temporary artifacts, including CLI version, JSONL stdout, stderr, and final reply, but always removes the copied credentials. Verified on Windows with Codex CLI 0.163.0. The test uses its experimental `skip_host_skill_discovery` feature to exclude host skills and its unelevated Windows sandbox for read-only skill access. CI leaves the live test disabled.
