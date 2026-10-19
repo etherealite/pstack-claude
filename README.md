@@ -2,7 +2,13 @@
 
 Edit and commit in the plugin repository. When you want to try a change in Codex, export that commit to a separate snapshot and install it through Codex's local marketplace commands. Editing files, switching branches, and refreshing Codex then leave the selected snapshot unchanged.
 
-This guide belongs to this fork's orphan `docs/local-development` branch. Keep it in the separate `pstack-local-dev-docs` worktree. These directions are for our fork and are not intended for upstream.
+This guide belongs to this fork's orphan `docs/local-development` branch. These directions are for our fork and are not intended for upstream. Read the guide from the plugin checkout without a separate worktree:
+
+```powershell
+git show docs/local-development:README.md
+```
+
+To edit the guide, switch a clean checkout to `docs/local-development`, commit the documentation changes, and return to your implementation branch. A separate documentation worktree is optional.
 
 The [official plugin packaging guide](https://developers.openai.com/plugins/build/plugins#install-a-local-plugin-manually) describes local marketplaces and copied installations. It also explains that marketplace refresh can refresh configured plugins. The extra snapshot below is our development convention. It keeps the marketplace source independent of an unfinished working tree.
 
@@ -13,7 +19,7 @@ The [official plugin packaging guide](https://developers.openai.com/plugins/buil
 | Copied install from a committed snapshot | When you explicitly promote a commit | Daily development |
 | Git marketplace pinned to a commit | When you explicitly select another commit | Shared builds that have been pushed |
 
-## Prepare the checkouts
+## Prepare the checkout
 
 Run these commands in PowerShell if you do not already have the fork.
 
@@ -22,10 +28,10 @@ git clone https://github.com/etherealite/pstack-claude.git
 Set-Location pstack-claude
 git remote add upstream https://github.com/michael-denyer/pstack-claude.git
 git fetch origin docs/local-development
-git worktree add ../pstack-local-dev-docs docs/local-development
+git branch --track docs/local-development origin/docs/local-development
 ```
 
-`origin` is our fork. `upstream` supplies releases. Keep implementation changes in the plugin checkout and changes to these directions in the documentation worktree.
+`origin` is our fork. `upstream` supplies releases. Keep implementation changes on an implementation branch and changes to these directions on `docs/local-development`.
 
 ## Export the commit you want to try
 
@@ -143,16 +149,55 @@ Verified with Codex CLI 0.163.0, Git 2.53.0, and Windows PowerShell on October 1
 
 ## Test unfinished work separately
 
-For experiments with uncommitted files, copy the plugin and its marketplace catalog into a temporary source directory and install them into a temporary `CODEX_HOME`. Do not register the working tree in your everyday Codex home. Use the live test below for discovery and skill invocation checks.
+For experiments with uncommitted files, register the plugin checkout as the marketplace source inside a temporary `CODEX_HOME`. Codex installs its own regular copy into that home's plugin cache. The waiting test uses this path without an extra source staging copy. The native invocation smoke test creates a temporary marketplace because its plugin is a generated fixture.
+
+Do not register the working tree in your everyday Codex home. Continue using committed snapshots for the everyday installation.
 
 An isolated home has separate plugin configuration and credentials. Keep credentials out of snapshots and source control. The existing live test handles this isolation and removes copied credentials when it finishes.
 
 ## Run the Codex live test
 
-Run the test from the plugin checkout containing `tests/codex/live.test.mjs`. The documentation worktree contains only this guide.
+Run the test from an implementation checkout containing `tests/codex/live.test.mjs`. The documentation branch contains only this guide.
 
 `tests/codex/live.test.mjs` runs one live Codex session to check native plugin installation and skill invocation with a minimal fixture. It follows the [official plugin evaluation example](https://developers.openai.com/cookbook/examples/partners/harness_aware_plugin_evals/harness_aware_plugin_evals) and [plugin packaging documentation](https://developers.openai.com/plugins/build/plugins). It checks an exact random marker stored only in the skill body. This covers plugin discovery and invocation; pstack workflows, delegation, and hooks need separate cases.
 
 The test skips unless explicitly enabled. With `codex` on `PATH`, use `PSTACK_CODEX_LIVE=1 bun test tests/codex/live.test.mjs` in a POSIX shell, or `$env:PSTACK_CODEX_LIVE='1'; bun test tests/codex/live.test.mjs` in PowerShell. It uses an isolated `CODEX_HOME` and copies only `auth.json` from the original `CODEX_HOME` or `~/.codex`, or logs in with `CODEX_API_KEY` or `OPENAI_API_KEY`. Missing credentials or CLI fail an enabled run. The default model is `gpt-6-luna` at `xhigh` effort; `PSTACK_CODEX_LIVE_MODEL` overrides the model.
 
-`PSTACK_CODEX_LIVE_KEEP=1` preserves temporary artifacts, including CLI version, JSONL stdout, stderr, and final reply, but always removes the copied credentials. Verified on Windows with Codex CLI 0.163.0. The test uses its experimental `skip_host_skill_discovery` feature to exclude host skills and its unelevated Windows sandbox for read-only skill access. CI leaves the live test disabled.
+`PSTACK_CODEX_LIVE_KEEP=1` preserves temporary artifacts, including CLI version, JSONL stdout, stderr, and final reply. Failed runs preserve artifacts even without this setting. Both paths always remove the temporary `auth.json` and leave the original credentials file untouched. Verified on Windows with Codex CLI 0.163.0. The test uses its experimental `skip_host_skill_discovery` feature to exclude host skills and its unelevated Windows sandbox for read-only skill access. CI leaves the live test disabled.
+
+## Run the Codex waiting regression
+
+Use an implementation checkout containing commit `2ac318b` or a later version of the Codex tests. The test code lives on `fix/codex-agent-waiting`.
+
+Run the detector and replay tests without model calls or credentials:
+
+```powershell
+bun test tests/codex/wait-trace.test.mjs tests/codex/replay-waits.test.mjs
+```
+
+Run the live planning scenario:
+
+```powershell
+$env:PSTACK_CODEX_LIVE='1'
+$env:PSTACK_CODEX_LIVE_KEEP='1'
+$env:PSTACK_CODEX_WAIT_SCENARIO='planning-investigation'
+bun test tests/codex/waiting.test.mjs
+```
+
+This scenario defaults to `gpt-6.1-sol` at `low` effort. Override the model with `PSTACK_CODEX_LIVE_MODEL` and the effort with `PSTACK_CODEX_WAIT_EFFORT`. It uses the same isolated credentials and artifact cleanup as the smoke test.
+
+The captured planning run reproduced repeated short waits while its explainer was active. The parent made five waits with three timeout-and-retry transitions, and the regression failed on that behavior. Waiting with no active agents remains unreproduced. A live run can choose a different strategy, so a passing attempt does not establish that the behavior is fixed.
+
+Replay the captured failure without another model call:
+
+```powershell
+bun tests/codex/replay-waits.mjs tests/codex/fixtures/planning-live.jsonl --short-waits
+```
+
+Expect exit code `1`, `shortWaitRetries: 3`, and `emptyWaits: 0`. Exit code `2` means the trace is incomplete. Without `--short-waits`, this fixture exits `0` because it contains no empty waits.
+
+For all scenarios, artifact details, and detector rules, read `tests/codex/README.md` on the implementation branch. You can read it from any checkout containing that branch:
+
+```powershell
+git show fix/codex-agent-waiting:tests/codex/README.md
+```
