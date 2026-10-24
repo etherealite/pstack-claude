@@ -296,7 +296,7 @@ The test skips unless explicitly enabled. With `codex` on `PATH`, use `PSTACK_CO
 
 ### Run the Codex waiting regression
 
-Run the waiting tests from the repository root. The live suite has three explicit planning cases.
+Run the waiting tests from the repository root. The live suite has three explicit mathematical review cases.
 
 Run the detector and replay tests without model calls or credentials:
 
@@ -304,15 +304,15 @@ Run the detector and replay tests without model calls or credentials:
 bun test tests/codex/wait-trace.test.mjs tests/codex/replay-waits.test.mjs
 ```
 
-Run the current-pstack planning reproduction:
+Run the current-pstack review reproduction:
 
 ```powershell
 bun test ./tests/codex/waiting.mjs --test-name-pattern current-pstack
 ```
 
-Omit `--test-name-pattern` to compare no activation, current pstack, and proposed waiting guidance on the same planning task. Use `--rerun-each=5 --randomize --seed=42` for repeated observations. The defaults are `gpt-6.1-sol` at `low` effort; the existing `PSTACK_CODEX_LIVE_MODEL` and `PSTACK_CODEX_WAIT_EFFORT` settings override them. Bun discovers this file only when its path is selected explicitly, so no enable switch is needed. Each case retains its artifacts and removes copied credentials.
+Omit `--test-name-pattern` to compare no plugin, current pstack, and proposed waiting guidance on the same review task. Three independent reviewers check two mathematical claims supplied in the prompt; no task corpus is needed. Use `--rerun-each=5 --randomize --seed=42` for repeated observations. The parent defaults to `gpt-6.1-sol` at `low` effort; the existing `PSTACK_CODEX_LIVE_MODEL` and `PSTACK_CODEX_WAIT_EFFORT` settings override the parent. The fixed reviewer panel uses `gpt-6.1-sol @xhigh`, `gpt-6-astra @medium`, and `gpt-6-luna @max` in every condition. Bun discovers this file only when its path is selected explicitly, so no enable switch is needed. Each case retains its artifacts and removes copied credentials.
 
-The captured planning run reproduced repeated short waits while its explainer was active. The parent made five waits with three timeout-and-retry transitions. Waiting with no active agents remains unreproduced. The consolidated suite checks observation validity and records polling as an outcome; passing does not establish a fix or pstack causation. Its comparison report includes document hashes, instruction exposure, wait counts, and worker durations.
+The historical planning run reproduced repeated short waits while its explainer was active. The parent made five waits with three timeout-and-retry transitions. Waiting with no active agents remains unreproduced. The live review suite checks observation validity and records polling as an outcome; passing does not establish a fix or pstack causation. Its comparison report includes task and instruction hashes, actual mapping exposure, wait and timeout counts, and worker durations. Plugin cases invoke the review workflow without explicitly requesting the mapping read, and verify that the parent receives its assigned mapping before delegation.
 
 Replay the captured failure without another model call:
 

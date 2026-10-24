@@ -9,7 +9,7 @@ The suite separates detector correctness from live observations of agent behavio
 | `replay-waits.test.mjs` | Replay CLI output and exit codes. | Bun. |
 | `installation.test.mjs` | Real plugin installation preserves skill source. | Codex CLI and existing `PSTACK_CODEX_INSTALL=1`. |
 | `live.test.mjs` | A generated native plugin invokes its installed skill. | Codex credentials and existing `PSTACK_CODEX_LIVE=1`. |
-| `waiting.mjs` | Three explicit tests compare the planning investigation under different instructions. | Codex credentials and explicit file selection. |
+| `waiting.mjs` | Three explicit tests compare an independent mathematical review under different instructions. | Codex credentials and explicit file selection. |
 | `waiting-calibration.mjs` | A deliberately forced empty wait checks the live trace format. | Codex credentials and explicit file selection. |
 
 Run the deterministic suite without credentials or model calls.
@@ -46,7 +46,7 @@ The fixtures retain tool identities, timestamps, agent activity, wait arguments,
 They omit personal metadata, reasoning, token counters, and command and report contents.
 Independent tool calls remain present so omissions cannot make useful work look like polling.
 
-## Compare instructions on the planning task
+## Compare instructions on a corpus-free review
 
 Run the three named cases, or select one with Bun.
 
@@ -59,15 +59,17 @@ bun test ./tests/codex/waiting.mjs --rerun-each=5 --randomize --seed=42
 | Test | Assigned instructions |
 | --- | --- |
 | `without-pstack` | No plugin installed or activated. |
-| `current-pstack` | Current pstack, with its simple how workflow. This is also the live reproduction case. |
+| `current-pstack` | Current pstack, with its interrogate workflow. This is also the live reproduction case. |
 | `guided-pstack` | The same workflow, with only the wait mapping changed in its isolated installed copy. |
 
-All cases ask the planning and storage question from the original reproduction.
-Each assigns document reading to one worker with the same model and effort.
-Every case receives the same snapshot of planning documents in `reference/`, with hashes recorded in the report.
-The baseline studies pstack documents as source material; the comparison concerns workflow activation, not absence of all pstack prose.
-The prompt now explicitly supplies source documents and requests a runtime-reference read in both plugin cases.
-It preserves the planning workload rather than claiming byte-for-byte identity with the historical prompt.
+All cases ask three independent reviewers to check two mathematical claims supplied entirely in the prompt.
+Claim A gives an exact count of integers divisible by exactly three of ten specified primes.
+Claim B incorrectly applies a linear binary-string count to a labeled circle.
+The parent consolidates findings as they arrive and returns proofs and corrected counts after receiving all three reviewers' results.
+Every session starts with an empty workspace. No task files or external sources are supplied.
+The baseline receives no pstack instructions or documents.
+The plugin cases invoke `interrogate` without explicitly requesting a mapping read; the workflow itself directs that read.
+Historical planning fixtures remain available for detector replay and are not inputs to this task.
 
 The proposed guidance requests 60-second interruptible waits only when needed.
 It also forbids waiting with no working agents or pending results.
@@ -76,14 +78,18 @@ Both plugin cases must receive their assigned mapping in parent tool output befo
 Skill activation alone does not establish mapping exposure.
 
 Tests assert execution, delegation, worker model and effort, final-answer checks, trace completeness, and instruction exposure.
-They record empty waits, retry counts, individual waits, and worker duration as outcomes, without requiring zero polling.
+They require three overlapping reviewers and an observed message from each, and prohibit further delegation.
+Automatic final notifications are recorded separately; a reviewer can deliver its findings in an ordinary message.
+They record empty waits, timeouts, retry counts, individual waits, and worker durations as outcomes, without requiring zero polling.
 A test passing means the observation is usable; it does not establish that polling is fixed or that pstack caused it.
-The answer checks require orchestration and repository content plus source citations; inspect the saved answer for substantive accuracy.
+The answer checks require the correct counts, `132057411984` and `79068200083062153040`.
+Inspect the saved answer and reviewer reports for substantive proof accuracy; number presence alone does not validate the proofs.
 
 Each file run prints a comparison directory containing one result per selected condition and `comparison.json`.
 The comparison retains invalid trials and their errors.
 Contrasts are produced only when all three cases yield valid observations.
-They report current-minus-baseline and guided-minus-current retry counts, not a statistical causal verdict.
+They report current-minus-baseline and guided-minus-current retry and timeout counts, not a statistical causal verdict.
+The report records the common task hash, reviewer panel, installed skill and mapping hashes, and actual mapping exposure before delegation and waiting.
 Each result links to its raw parent and worker rollouts, prompt, final answer, CLI version, source revision, and plugin diff.
 Artifacts remain available after successful runs; copied credentials are removed.
 
@@ -94,8 +100,10 @@ Guided improving current supports the guidance; by itself, that does not prove p
 Five runs are an exploratory starting point, not a power calculation.
 Use different recorded seeds to vary order across batches; a fixed seed can repeat the same order.
 
-The defaults are `gpt-6.1-sol` and `low`, matching the recordings.
-Existing `PSTACK_CODEX_LIVE_MODEL` and `PSTACK_CODEX_WAIT_EFFORT` settings override them for all conditions.
+The parent defaults are `gpt-6.1-sol` and `low`.
+Existing `PSTACK_CODEX_LIVE_MODEL` and `PSTACK_CODEX_WAIT_EFFORT` settings override the parent for all conditions.
+All conditions use the same fixed reviewer panel: `gpt-6.1-sol @xhigh`, `gpt-6-astra @medium`, and `gpt-6-luna @max`.
+These settings reproduced short retries in the full-cost run; reviewer settings do not vary with the parent's overrides.
 Hooks remain disabled to isolate explicit activation.
 
 ## Calibrate after a trace-format change
