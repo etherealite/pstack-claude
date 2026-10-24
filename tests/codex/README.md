@@ -5,11 +5,13 @@ The suite separates detector correctness from live observations of agent behavio
 | Files | Evidence | Requirements |
 | --- | --- | --- |
 | `harness/harness.test.mjs` | Isolated sessions, CLI arguments, authentication cleanup, logs, and rollout lookup through a scripted CLI. | Bun. |
+| `harness/controlled-workers.test.mjs` | Parent forwarding, local worker responses, refusal of paid worker fallbacks, and answer formatting. | Bun; no model calls. |
 | `wait-trace.test.mjs` | Agent states, pending delivery, empty waits, short retries, and incomplete traces. | Bun. |
 | `replay-waits.test.mjs` | Replay CLI output and exit codes. | Bun. |
 | `installation.test.mjs` | Real plugin installation preserves skill source. | Codex CLI and existing `PSTACK_CODEX_INSTALL=1`. |
 | `live.test.mjs` | A generated native plugin invokes its installed skill. | Codex credentials and existing `PSTACK_CODEX_LIVE=1`. |
-| `waiting.mjs` | Three explicit tests compare an independent mathematical review under different instructions. | Codex credentials and explicit file selection. |
+| `waiting.mjs` | Three explicit tests compare parent behavior with scheduled local worker responses. | ChatGPT credentials and explicit file selection; only parent inference goes upstream. |
+| `waiting-full-inference.mjs` | The same tests with real reviewer inference, for occasional calibration. | Codex credentials and explicit file selection; all four agents use inference. |
 | `waiting-calibration.mjs` | A deliberately forced empty wait checks the live trace format. | Codex credentials and explicit file selection. |
 
 Run the deterministic suite without credentials or model calls.
@@ -18,7 +20,7 @@ Run the deterministic suite without credentials or model calls.
 bun test tests/codex
 ```
 
-The two live waiting files omit `.test` in their filenames, so automatic discovery excludes them.
+The live waiting entry files omit `.test` in their filenames, so automatic discovery excludes them.
 The existing installation and native invocation tests retain their existing switches.
 
 ## Inspect the recorded reproduction
@@ -49,12 +51,23 @@ Independent tool calls remain present so omissions cannot make useful work look 
 ## Compare instructions on a corpus-free review
 
 Run the three named cases, or select one with Bun.
+The default live suite keeps parent inference real and serves worker responses through a local provider proxy.
 
 ```powershell
 bun test ./tests/codex/waiting.mjs
 bun test ./tests/codex/waiting.mjs --test-name-pattern current-pstack
 bun test ./tests/codex/waiting.mjs --rerun-each=5 --randomize --seed=42
 ```
+
+Run full inference only when calibrating against real reviewer behavior:
+
+```powershell
+bun test ./tests/codex/waiting-full-inference.mjs
+bun test ./tests/codex/waiting-full-inference.mjs --test-name-pattern current-pstack
+```
+
+Both entry files register the same explicit tests from `waiting-suite.mjs` with different session helpers.
+They share the task, reviewer settings, assertions, and report format. No environment variable selects the mode.
 
 | Test | Assigned instructions |
 | --- | --- |
@@ -71,6 +84,22 @@ The baseline receives no pstack instructions or documents.
 The plugin cases invoke `interrogate` without explicitly requesting a mapping read; the workflow itself directs that read.
 Historical planning fixtures remain available for detector replay and are not inputs to this task.
 
+In the default mode, the proxy identifies workers using Codex's request metadata, outside the model conversation.
+Only root inference and model-catalog requests are forwarded to the authenticated ChatGPT backend.
+Worker model names remain unchanged, but the named reviewer models do not run.
+Each worker receives the same scripted mathematical report after its assigned delay.
+Spawning, waiting, worker completion, and result delivery still pass through Codex.
+The prompts contain no proxy or timing instructions.
+
+The delays are 74,538 ms for Sol, 56,257 ms for Astra, and 60,591 ms for Luna.
+They come from worker durations in the full-inference current-pstack run at 2026-10-24 12:06 UTC, comparison block `pstack-review-results-O2tGRE`.
+Each delay begins when the proxy receives that worker's first inference request; it does not fix absolute spawn or completion times.
+Every condition uses the same delays. OS scheduling, parent inference, and notification delivery can still vary.
+The proxy records intended delays and actual release times in `controlled-workers.json`.
+Unsupported or repeated worker requests fail instead of falling back to paid inference.
+Each session permits at most 30 parent inference requests and disables automatic request and stream retries.
+Each controlled trial asserts three local worker responses, successful real parent inference, and zero upstream worker requests.
+
 The proposed guidance requests 60-second interruptible waits only when needed.
 It also forbids waiting with no working agents or pending results.
 The checkout's instructions remain unchanged.
@@ -83,6 +112,7 @@ Automatic final notifications are recorded separately; a reviewer can deliver it
 They record empty waits, timeouts, retry counts, individual waits, and worker durations as outcomes, without requiring zero polling.
 A test passing means the observation is usable; it does not establish that polling is fixed or that pstack caused it.
 The answer checks require the correct counts, `132057411984` and `79068200083062153040`.
+Ordinary commas and LaTeX thin-space separators (`\,`) are accepted.
 Inspect the saved answer and reviewer reports for substantive proof accuracy; number presence alone does not validate the proofs.
 
 Each file run prints a comparison directory containing one result per selected condition and `comparison.json`.
@@ -90,6 +120,8 @@ The comparison retains invalid trials and their errors.
 Contrasts are produced only when all three cases yield valid observations.
 They report current-minus-baseline and guided-minus-current retry and timeout counts, not a statistical causal verdict.
 The report records the common task hash, reviewer panel, installed skill and mapping hashes, and actual mapping exposure before delegation and waiting.
+It also records `workerMode`; controlled trials include routing and timing evidence in `workerControl`.
+Compare instruction conditions within one mode rather than combining controlled and full-inference observations.
 Each result links to its raw parent and worker rollouts, prompt, final answer, CLI version, source revision, and plugin diff.
 Artifacts remain available after successful runs; copied credentials are removed.
 
@@ -97,6 +129,7 @@ Compare repeated outcomes and worker durations before interpreting count differe
 A short worker run with no polling opportunity cannot establish that a change fixed polling.
 Current exceeding baseline supports an activation effect on this task.
 Guided improving current supports the guidance; by itself, that does not prove pstack caused the original polling.
+Scripted reports can change parent behavior relative to real reviews. The full-inference entry provides calibration for that limitation.
 Five runs are an exploratory starting point, not a power calculation.
 Use different recorded seeds to vary order across batches; a fixed seed can repeat the same order.
 
@@ -104,6 +137,7 @@ The parent defaults are `gpt-6.1-sol` and `low`.
 Existing `PSTACK_CODEX_LIVE_MODEL` and `PSTACK_CODEX_WAIT_EFFORT` settings override the parent for all conditions.
 All conditions use the same fixed reviewer panel: `gpt-6.1-sol @xhigh`, `gpt-6-astra @medium`, and `gpt-6-luna @max`.
 These settings reproduced short retries in the full-cost run; reviewer settings do not vary with the parent's overrides.
+In default controlled mode these are worker identities and schedule selectors, not paid reviewer inference.
 Hooks remain disabled to isolate explicit activation.
 
 ## Calibrate after a trace-format change

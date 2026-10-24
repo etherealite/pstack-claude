@@ -296,7 +296,7 @@ The test skips unless explicitly enabled. With `codex` on `PATH`, use `PSTACK_CO
 
 ### Run the Codex waiting regression
 
-Run the waiting tests from the repository root. The live suite has three explicit mathematical review cases.
+Run the waiting tests from the repository root. The default live suite has three explicit mathematical review cases with real parent inference and scheduled local worker responses.
 
 Run the detector and replay tests without model calls or credentials:
 
@@ -310,9 +310,17 @@ Run the current-pstack review reproduction:
 bun test ./tests/codex/waiting.mjs --test-name-pattern current-pstack
 ```
 
-Omit `--test-name-pattern` to compare no plugin, current pstack, and proposed waiting guidance on the same review task. Three independent reviewers check two mathematical claims supplied in the prompt; no task corpus is needed. Use `--rerun-each=5 --randomize --seed=42` for repeated observations. The parent defaults to `gpt-6.1-sol` at `low` effort; the existing `PSTACK_CODEX_LIVE_MODEL` and `PSTACK_CODEX_WAIT_EFFORT` settings override the parent. The fixed reviewer panel uses `gpt-6.1-sol @xhigh`, `gpt-6-astra @medium`, and `gpt-6-luna @max` in every condition. Bun discovers this file only when its path is selected explicitly, so no enable switch is needed. Each case retains its artifacts and removes copied credentials.
+Omit `--test-name-pattern` to compare no plugin, current pstack, and proposed waiting guidance on the same review task. The parent requests three independent reviews of two mathematical claims supplied in the prompt; no task corpus is needed. A local provider proxy serves scripted worker reports after roughly 56, 61, and 75 seconds. Codex still handles real spawning, waiting, and completion notifications. Each trial asserts zero upstream worker inference requests. Use `--rerun-each=5 --randomize --seed=42` for repeated observations.
 
-The historical planning run reproduced repeated short waits while its explainer was active. The parent made five waits with three timeout-and-retry transitions. Waiting with no active agents remains unreproduced. The live review suite checks observation validity and records polling as an outcome; passing does not establish a fix or pstack causation. Its comparison report includes task and instruction hashes, actual mapping exposure, wait and timeout counts, and worker durations. Plugin cases invoke the review workflow without explicitly requesting the mapping read, and verify that the parent receives its assigned mapping before delegation.
+Run the same task with real reviewers only for occasional full-inference calibration:
+
+```powershell
+bun test ./tests/codex/waiting-full-inference.mjs
+```
+
+Both modes share the task and assertions. The parent defaults to `gpt-6.1-sol` at `low` effort; the existing `PSTACK_CODEX_LIVE_MODEL` and `PSTACK_CODEX_WAIT_EFFORT` settings override the parent. The reviewer identities are `gpt-6.1-sol @xhigh`, `gpt-6-astra @medium`, and `gpt-6-luna @max`. These models run only in full-inference mode. Bun discovers either entry file only when its path is selected explicitly, so no enable switch is needed. Controlled mode requires ChatGPT credentials; each case retains its artifacts and removes copied credentials.
+
+The historical planning run reproduced repeated short waits while its explainer was active. The parent made five waits with three timeout-and-retry transitions. Waiting with no active agents remains unreproduced. The live review suite checks observation validity and records polling as an outcome; passing does not establish a fix or pstack causation. Its comparison report includes task and instruction hashes, actual mapping exposure, wait and timeout counts, worker durations, and the selected worker mode. Controlled trials also retain proxy routing and release-time evidence. Scripted reports may influence the parent differently from real reviews, so compare instruction conditions within one mode. Plugin cases invoke the review workflow without explicitly requesting the mapping read, and verify that the parent receives its assigned mapping before delegation.
 
 Replay the captured failure without another model call:
 
