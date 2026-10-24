@@ -296,7 +296,7 @@ The test skips unless explicitly enabled. With `codex` on `PATH`, use `PSTACK_CO
 
 ### Run the Codex waiting regression
 
-Run the waiting tests from the repository root. Each scenario is a named test.
+Run the waiting tests from the repository root. The live suite has three explicit planning cases.
 
 Run the detector and replay tests without model calls or credentials:
 
@@ -304,17 +304,15 @@ Run the detector and replay tests without model calls or credentials:
 bun test tests/codex/wait-trace.test.mjs tests/codex/replay-waits.test.mjs
 ```
 
-Run the live planning scenario:
+Run the current-pstack planning reproduction:
 
 ```powershell
-$env:PSTACK_CODEX_LIVE='1'
-$env:PSTACK_CODEX_LIVE_KEEP='1'
-bun test tests/codex/waiting.test.mjs --test-name-pattern planning-investigation
+bun test ./tests/codex/waiting.mjs --test-name-pattern current-pstack
 ```
 
-Omit `--test-name-pattern` to run all six waiting scenarios. The planning scenario defaults to `gpt-6.1-sol` at `low` effort. Override the model with `PSTACK_CODEX_LIVE_MODEL` and the effort with `PSTACK_CODEX_WAIT_EFFORT`. It uses the same isolated credentials and artifact cleanup as the smoke test.
+Omit `--test-name-pattern` to compare no activation, current pstack, and proposed waiting guidance on the same planning task. Use `--rerun-each=5 --randomize --seed=42` for repeated observations. The defaults are `gpt-6.1-sol` at `low` effort; the existing `PSTACK_CODEX_LIVE_MODEL` and `PSTACK_CODEX_WAIT_EFFORT` settings override them. Bun discovers this file only when its path is selected explicitly, so no enable switch is needed. Each case retains its artifacts and removes copied credentials.
 
-The captured planning run reproduced repeated short waits while its explainer was active. The parent made five waits with three timeout-and-retry transitions, and the regression failed on that behavior. Waiting with no active agents remains unreproduced. A live run can choose a different strategy, so a passing attempt does not establish that the behavior is fixed.
+The captured planning run reproduced repeated short waits while its explainer was active. The parent made five waits with three timeout-and-retry transitions. Waiting with no active agents remains unreproduced. The consolidated suite checks observation validity and records polling as an outcome; passing does not establish a fix or pstack causation. Its comparison report includes document hashes, instruction exposure, wait counts, and worker durations.
 
 Replay the captured failure without another model call:
 
@@ -324,7 +322,7 @@ bun tests/codex/replay-waits.mjs tests/codex/fixtures/planning-live.jsonl --shor
 
 Expect exit code `1`, `shortWaitRetries: 3`, and `emptyWaits: 0`. Exit code `2` means the trace is incomplete. Without `--short-waits`, this fixture exits `0` because it contains no empty waits.
 
-For all scenarios, artifact details, harness tests, installation checks, and detector rules, read [Run Codex tests](tests/codex/README.md).
+For comparison limits, the optional empty-wait calibration, artifact details, and other checks, read [Run Codex tests](tests/codex/README.md).
 
 ## License
 

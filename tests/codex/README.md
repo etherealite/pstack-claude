@@ -1,119 +1,110 @@
 # Run Codex tests
 
-Top-level test modules check plugin installation, live agent behavior, and the waiting detector and replay tooling.
-The `fixtures/` directory contains recorded waiting traces.
-The `harness/` directory contains the session runner, its tests and fake CLI fixture, and the plugin fixture builder.
+The suite separates detector correctness from live observations of agent behavior.
 
-| Modules | What they check | Requirements |
+| Files | Evidence | Requirements |
 | --- | --- | --- |
-| `harness/harness.test.mjs` | Isolated homes, CLI arguments, installation commands, authentication, logs, rollout lookup, timeouts, and cleanup through a scripted CLI subprocess. | Bun. No Codex installation, credentials, or model calls. |
-| `wait-trace.test.mjs`, `replay-waits.test.mjs` | Trace classification and replay exit codes against synthetic and captured traces. | Bun. No credentials or model calls. |
-| `installation.test.mjs` | Real Codex installation preserves the generated native skill and this checkout's pstack skill source. | Codex CLI and `PSTACK_CODEX_INSTALL=1`. No credentials or model calls. |
-| `live.test.mjs`, `waiting.test.mjs` | Skill invocation, replies, delegation, and waiting choices made by a live agent. | Codex CLI, credentials, and `PSTACK_CODEX_LIVE=1`. Results depend on the model. |
+| `harness/harness.test.mjs` | Isolated sessions, CLI arguments, authentication cleanup, logs, and rollout lookup through a scripted CLI. | Bun. |
+| `wait-trace.test.mjs` | Agent states, pending delivery, empty waits, short retries, and incomplete traces. | Bun. |
+| `replay-waits.test.mjs` | Replay CLI output and exit codes. | Bun. |
+| `installation.test.mjs` | Real plugin installation preserves skill source. | Codex CLI and existing `PSTACK_CODEX_INSTALL=1`. |
+| `live.test.mjs` | A generated native plugin invokes its installed skill. | Codex credentials and existing `PSTACK_CODEX_LIVE=1`. |
+| `waiting.mjs` | Three explicit tests compare the planning investigation under different instructions. | Codex credentials and explicit file selection. |
+| `waiting-calibration.mjs` | A deliberately forced empty wait checks the live trace format. | Codex credentials and explicit file selection. |
 
-Run the deterministic contracts from the repository root.
-
-```powershell
-bun test tests/codex/harness tests/codex/wait-trace.test.mjs tests/codex/replay-waits.test.mjs
-```
-
-Run the installation integration tests independently of live agents.
+Run the deterministic suite without credentials or model calls.
 
 ```powershell
-$env:PSTACK_CODEX_INSTALL='1'
-bun test tests/codex/installation.test.mjs
+bun test tests/codex
 ```
 
-A default `bun test tests/codex` runs the deterministic contracts and skips both optional suites.
-`harness/harness.mjs` authenticates only when a test calls `exec`, so installation checks do not copy or require credentials.
-`harness/native-plugin.mjs` supplies the same generated plugin to the installation and live invocation tests.
+The two live waiting files omit `.test` in their filenames, so automatic discovery excludes them.
+The existing installation and native invocation tests retain their existing switches.
 
-## Reproduce Codex agent waiting
+## Inspect the recorded reproduction
 
-The planning investigation reproduced repeated short waits on Codex CLI 0.163.0 with pstack 0.9.93,
-using `gpt-6.1-sol` at low effort. The live regression made five short waits for its explainer,
-with three timeout-and-retry transitions. Its first request was for one second, which Codex clamped to ten seconds.
-The recorded planning conversation made two 10-second waits, with one timeout-and-retry transition.
-Neither trace contains an empty wait.
-The separate report of waiting with no working agents remains unreproduced.
+The planning investigation captured repeated short waits on Codex CLI 0.163.0 with pstack 0.9.93 and `gpt-6.1-sol` at low effort.
+The original conversation made two waits with one timeout-and-retry transition.
+The isolated reproduction made five waits with three timeout-and-retry transitions.
+Its initial one-second request was clamped to ten seconds.
+Both recordings have zero empty waits. Waiting with no working agents remains unreproduced.
 
-To test the working plugin in a fresh Codex session, enable the live suite.
-Run these commands from the repository root with `codex` and `bun` on `PATH`.
-The waiting test registers this checkout as its marketplace source in a temporary Codex home.
-Codex installs a regular copy into that home's plugin cache. There is no extra staging copy of the source.
-The native invocation smoke test builds its own temporary marketplace because its plugin is a generated fixture.
-Both tests remove copied credentials after each run.
-
-```powershell
-$env:PSTACK_CODEX_LIVE='1'
-$env:PSTACK_CODEX_LIVE_KEEP='1'
-bun test tests/codex/waiting.test.mjs --test-name-pattern planning-investigation
-```
-
-Run `bun test tests/codex/live.test.mjs tests/codex/waiting.test.mjs` with `PSTACK_CODEX_LIVE=1` to include the native invocation smoke test.
-
-Each scenario is a named test. Select one with `--test-name-pattern`, or omit the filter to run all six scenarios.
-
-| Scenario | What the parent does |
-| --- | --- |
-| `planning-investigation` | Answers the original planning question through `pstack:how`. Checks empty waits and repeated short waits. |
-| `completed-agents` | Delegates two file reads, computes a sum, and combines the results. |
-| `no-agents` | Reads a file directly, with delegation forbidden. |
-| `review-round` | Collects two reader reports, then starts two fresh reviewers. |
-| `stale-handoff` | Resumes a note that refers to unfinished readers from an ended session. |
-| `empty-wait-control` | Intentionally calls `wait_agent` with no agents to calibrate the detector. |
-
-For another model, set `PSTACK_CODEX_LIVE_MODEL`.
-For another reasoning effort, set `PSTACK_CODEX_WAIT_EFFORT`.
-The planning case defaults to `gpt-6.1-sol` at `low`, matching the recorded conversation.
-Other cases default to `gpt-6-luna` at `xhigh`.
-Workers inherit the parent model. Hooks stay disabled to isolate explicit skill invocation.
-
-Open `wait-summary.json` in the artifact directory printed by the test.
-The directory also contains the prompt, model settings, CLI version, source revision, plugin diff, and session logs.
-Failures preserve artifacts even without `PSTACK_CODEX_LIVE_KEEP`.
-
-The ordinary scenarios fail if a new wait occurs after all workers have completed and delivered their final answers.
-A wait that starts while a worker is active is valid, even if the worker finishes during that wait.
-A completed worker whose result has not arrived is recorded as `pending-result`.
-Unsupported or incomplete traces fail the coverage check.
-
-The planning case also fails when a wait of at most 10 seconds times out and the parent requests
-another such wait for the same active agents, without intervening work, incoming messages, or agent lifecycle changes.
-Outgoing messages and agent listings do not count as independent work for this check.
-Ten seconds matches the observed behavior. It is a scenario policy, not a universal rule that every short wait is wrong.
-The prompt requests the planning investigation and its workflow. It does not tell the model to wait or select a timeout.
-A live run can choose a different strategy, so a passing run means that attempt did not reproduce the pattern.
-
-To verify the detector against a real empty wait, select `empty-wait-control` and rerun the live test.
-That control passes only when it captures one empty wait that times out.
-It forces the unwanted tool use. It does not establish that pstack causes the same behavior during ordinary work.
-
-To check a saved parent rollout without another model call, run the replay command.
-Use the rollout path from `wait-summary.json`.
-
-```powershell
-bun tests/codex/replay-waits.mjs '<parent-rollout.jsonl>'
-```
-
-The replay exits with `1` when it detects an empty wait, `0` for a complete trace without one, or `2` for incomplete evidence.
-Add `--short-waits` to also fail on the planning case's short wait retries.
-
-The captured fixtures make detection deterministic without credentials or another model call.
+Replay the recordings without another model call.
 
 ```powershell
 bun tests/codex/replay-waits.mjs tests/codex/fixtures/planning-original.jsonl --short-waits
 bun tests/codex/replay-waits.mjs tests/codex/fixtures/planning-live.jsonl --short-waits
 ```
 
-Both commands should exit `1` and report `emptyWaits: 0`.
-The original fixture reports `shortWaitRetries: 1`; the live regression fixture reports `shortWaitRetries: 3`.
-Without `--short-waits`, both exit `0` because their agents were running.
+Both exit with code 1 and report one and three short wait retries respectively.
+Without `--short-waits`, both exit with code 0 because their agents were working.
+For other rollouts, exit code 2 means evidence is incomplete.
 
-`planning-original.jsonl` comes from the planning conversation's turn at 2026-10-19 08:17 UTC,
-thread `01a152e3-87cb-7442-b7ba-f070ab941cdc`.
-`planning-live.jsonl` comes from the fresh isolated regression run at 10:50 UTC,
-thread `01a153c9-385c-7143-89f6-cfc8120d1b15`.
-The fixtures retain timestamps, tool identities, activity, wait arguments and results, final-answer delivery, and turn boundaries.
-They omit personal metadata, reasoning, token counters, and the contents of commands, messages, and reports.
-Independent tool calls remain present so omissions cannot turn intervening work into apparent polling.
+`planning-original.jsonl` comes from the conversation at 2026-10-19 08:17 UTC, thread `01a152e3-87cb-7442-b7ba-f070ab941cdc`.
+`planning-live.jsonl` comes from the isolated run at 10:50 UTC, thread `01a153c9-385c-7143-89f6-cfc8120d1b15`.
+The fixtures retain tool identities, timestamps, agent activity, wait arguments, results, messages, and turn boundaries.
+They omit personal metadata, reasoning, token counters, and command and report contents.
+Independent tool calls remain present so omissions cannot make useful work look like polling.
+
+## Compare instructions on the planning task
+
+Run the three named cases, or select one with Bun.
+
+```powershell
+bun test ./tests/codex/waiting.mjs
+bun test ./tests/codex/waiting.mjs --test-name-pattern current-pstack
+bun test ./tests/codex/waiting.mjs --rerun-each=5 --randomize --seed=42
+```
+
+| Test | Assigned instructions |
+| --- | --- |
+| `without-pstack` | No plugin installed or activated. |
+| `current-pstack` | Current pstack, with its simple how workflow. This is also the live reproduction case. |
+| `guided-pstack` | The same workflow, with only the wait mapping changed in its isolated installed copy. |
+
+All cases ask the planning and storage question from the original reproduction.
+Each assigns document reading to one worker with the same model and effort.
+Every case receives the same snapshot of planning documents in `reference/`, with hashes recorded in the report.
+The baseline studies pstack documents as source material; the comparison concerns workflow activation, not absence of all pstack prose.
+The prompt now explicitly supplies source documents and requests a runtime-reference read in both plugin cases.
+It preserves the planning workload rather than claiming byte-for-byte identity with the historical prompt.
+
+The proposed guidance requests 60-second interruptible waits only when needed.
+It also forbids waiting with no working agents or pending results.
+The checkout's instructions remain unchanged.
+Both plugin cases must receive their assigned mapping in parent tool output before delegation.
+Skill activation alone does not establish mapping exposure.
+
+Tests assert execution, delegation, worker model and effort, final-answer checks, trace completeness, and instruction exposure.
+They record empty waits, retry counts, individual waits, and worker duration as outcomes, without requiring zero polling.
+A test passing means the observation is usable; it does not establish that polling is fixed or that pstack caused it.
+The answer checks require orchestration and repository content plus source citations; inspect the saved answer for substantive accuracy.
+
+Each file run prints a comparison directory containing one result per selected condition and `comparison.json`.
+The comparison retains invalid trials and their errors.
+Contrasts are produced only when all three cases yield valid observations.
+They report current-minus-baseline and guided-minus-current retry counts, not a statistical causal verdict.
+Each result links to its raw parent and worker rollouts, prompt, final answer, CLI version, source revision, and plugin diff.
+Artifacts remain available after successful runs; copied credentials are removed.
+
+Compare repeated outcomes and worker durations before interpreting count differences.
+A short worker run with no polling opportunity cannot establish that a change fixed polling.
+Current exceeding baseline supports an activation effect on this task.
+Guided improving current supports the guidance; by itself, that does not prove pstack caused the original polling.
+Five runs are an exploratory starting point, not a power calculation.
+Use different recorded seeds to vary order across batches; a fixed seed can repeat the same order.
+
+The defaults are `gpt-6.1-sol` and `low`, matching the recordings.
+Existing `PSTACK_CODEX_LIVE_MODEL` and `PSTACK_CODEX_WAIT_EFFORT` settings override them for all conditions.
+Hooks remain disabled to isolate explicit activation.
+
+## Calibrate after a trace-format change
+
+Run this diagnostic only when checking that the detector recognizes the host's live empty-wait events.
+
+```powershell
+bun test ./tests/codex/waiting-calibration.mjs
+```
+
+It deliberately requests one empty wait and verifies the captured timeout.
+It installs no pstack plugin and provides no evidence of spontaneous polling or pstack causation.
