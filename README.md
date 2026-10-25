@@ -288,15 +288,15 @@ An isolated home has separate plugin configuration and credentials. Keep credent
 
 Run the test from the repository root.
 
-`tests/codex/live.test.mjs` runs one live Codex session to check native plugin installation and skill invocation with a minimal fixture. It follows the [official plugin evaluation example](https://developers.openai.com/cookbook/examples/partners/harness_aware_plugin_evals/harness_aware_plugin_evals) and [plugin packaging documentation](https://developers.openai.com/plugins/build/plugins). It checks an exact random marker stored only in the skill body. This covers plugin discovery and invocation; pstack workflows, delegation, and hooks need separate cases.
+`tests/codex/integration/live.test.mjs` runs one live Codex session to check native plugin installation and skill invocation with a minimal fixture. It follows the [official plugin evaluation example](https://developers.openai.com/cookbook/examples/partners/harness_aware_plugin_evals/harness_aware_plugin_evals) and [plugin packaging documentation](https://developers.openai.com/plugins/build/plugins). It checks an exact random marker stored only in the skill body. This covers plugin discovery and invocation; pstack workflows, delegation, and hooks need separate cases.
 
-The test skips unless explicitly enabled. With `codex` on `PATH`, use `PSTACK_CODEX_LIVE=1 bun test tests/codex/live.test.mjs` in a POSIX shell, or `$env:PSTACK_CODEX_LIVE='1'; bun test tests/codex/live.test.mjs` in PowerShell. It uses an isolated `CODEX_HOME` and copies only `auth.json` from the original `CODEX_HOME` or `~/.codex`, or logs in with `CODEX_API_KEY` or `OPENAI_API_KEY`. Missing credentials or CLI fail an enabled run. The default model is `gpt-6-luna` at `xhigh` effort; `PSTACK_CODEX_LIVE_MODEL` overrides the model.
+The test skips unless explicitly enabled. With `codex` on `PATH`, use `PSTACK_CODEX_LIVE=1 bun test tests/codex/integration/live.test.mjs` in a POSIX shell, or `$env:PSTACK_CODEX_LIVE='1'; bun test tests/codex/integration/live.test.mjs` in PowerShell. It uses an isolated `CODEX_HOME` and copies only `auth.json` from the original `CODEX_HOME` or `~/.codex`, or logs in with `CODEX_API_KEY` or `OPENAI_API_KEY`. Missing credentials or CLI fail an enabled run. The default model is `gpt-6-luna` at `xhigh` effort; `PSTACK_CODEX_LIVE_MODEL` overrides the model.
 
 `PSTACK_CODEX_LIVE_KEEP=1` preserves temporary artifacts, including CLI version, JSONL stdout, stderr, and final reply. Failed runs preserve artifacts even without this setting. Both paths always remove the temporary `auth.json` and leave the original credentials file untouched. Verified on Windows with Codex CLI 0.163.0. The test uses its experimental `skip_host_skill_discovery` feature to exclude host skills and its unelevated Windows sandbox for read-only skill access. CI leaves the live test disabled.
 
-### Run the Codex waiting regression
+### Run the Codex waiting benchmark
 
-Run the waiting tests from the repository root. The default live suite has three explicit mathematical review cases with real parent inference and scheduled local worker responses.
+Run the waiting benchmark from the repository root. Deterministic tests live in `tests/codex`, credential-dependent integration tests in `tests/codex/integration`, model benchmarks in `benchmarks/codex`, and replay and sanitization commands in `tools/codex`. The default benchmark measures the current checkout once, with real parent inference and scheduled local worker responses.
 
 Run the detector and replay tests without model calls or credentials:
 
@@ -307,28 +307,36 @@ bun test tests/codex/wait-trace.test.mjs tests/codex/replay-waits.test.mjs
 Run the current-pstack review reproduction:
 
 ```powershell
-bun test ./tests/codex/waiting.mjs --test-name-pattern current-pstack
+bun test ./benchmarks/codex/waiting-controlled.mjs
 ```
 
-Omit `--test-name-pattern` to compare no plugin, current pstack, and proposed waiting guidance on the same review task. The parent requests three independent reviews of two mathematical claims supplied in the prompt; no task corpus is needed. A local provider proxy serves scripted worker reports after roughly 56, 61, and 75 seconds. Codex still handles real spawning, waiting, and completion notifications. Each trial asserts zero upstream worker inference requests. Use `--rerun-each=5 --randomize --seed=42` for repeated observations.
+Record the unchanged reproduction branch once and retain its result directory as a baseline. Make skill fixes in a separate branch or worktree, then run the same command there to measure only the candidate. Reuse the baseline while the task, parent settings, worker schedule, and runtime remain unchanged. Start with one observation per edit; repeat promising or ambiguous results deliberately. The benchmark installs the checkout without patching its instructions.
+
+The parent requests three independent reviews of two mathematical claims supplied in the prompt; no task corpus is needed. A local provider proxy serves scripted worker reports after roughly 56, 61, and 75 seconds. Codex still handles real spawning, waiting, and completion notifications. Each trial asserts zero upstream worker inference requests.
+
+The no-plugin control is separate and optional:
+
+```powershell
+bun test ./benchmarks/codex/waiting-control.mjs
+```
 
 Run the same task with real reviewers only for occasional full-inference calibration:
 
 ```powershell
-bun test ./tests/codex/waiting-full-inference.mjs
+bun test ./benchmarks/codex/waiting-full-inference.mjs
 ```
 
-Both modes share the task and assertions. The parent defaults to `gpt-6.1-sol` at `low` effort; the existing `PSTACK_CODEX_LIVE_MODEL` and `PSTACK_CODEX_WAIT_EFFORT` settings override the parent. The reviewer identities are `gpt-6.1-sol @xhigh`, `gpt-6-astra @medium`, and `gpt-6-luna @max`. These models run only in full-inference mode. Bun discovers either entry file only when its path is selected explicitly, so no enable switch is needed. Controlled mode requires ChatGPT credentials; each case retains its artifacts and removes copied credentials.
+Both modes share the task and assertions and run only `current-pstack`. The parent defaults to `gpt-6.1-sol` at `low` effort; the existing `PSTACK_CODEX_LIVE_MODEL` and `PSTACK_CODEX_WAIT_EFFORT` settings override the parent. The reviewer identities are `gpt-6.1-sol @xhigh`, `gpt-6-astra @medium`, and `gpt-6-luna @max`. These models run only in full-inference mode. The benchmark directory is outside Bun's configured test root; select an entry file explicitly by path. Controlled mode requires ChatGPT credentials; each case retains its artifacts and removes copied credentials.
 
-The historical planning run reproduced repeated short waits while its explainer was active. The parent made five waits with three timeout-and-retry transitions. Waiting with no active agents remains unreproduced. The live review suite checks observation validity and records polling as an outcome; passing does not establish a fix or pstack causation. Its comparison report includes task and instruction hashes, actual mapping exposure, wait and timeout counts, worker durations, and the selected worker mode. Controlled trials also retain proxy routing and release-time evidence. Scripted reports may influence the parent differently from real reviews, so compare instruction conditions within one mode. Plugin cases invoke the review workflow without explicitly requesting the mapping read, and verify that the parent receives its assigned mapping before delegation.
+Recorded fixtures cover short polling with active workers, long waits interrupted by results, and automatic result delivery with no wait calls. Waiting with no active agents remains unreproduced outside deliberate calibration. The live review suite checks observation validity and records polling as an outcome; passing does not establish a fix or pstack causation. Its comparison report includes task and instruction hashes, actual mapping exposure, wait and timeout counts, worker durations, and the selected worker mode. Controlled trials also retain proxy routing and release-time evidence. Scripted reports may influence the parent differently from real reviews, so compare instruction conditions within one mode. Plugin cases invoke the review workflow without explicitly requesting the mapping read, and verify that the parent receives its assigned mapping before delegation.
 
 Replay the captured failure without another model call:
 
 ```powershell
-bun tests/codex/replay-waits.mjs tests/codex/fixtures/planning-live.jsonl --short-waits
+bun tools/codex/replay-waits.mjs tests/codex/fixtures/active-worker-polling.jsonl --short-waits
 ```
 
-Expect exit code `1`, `shortWaitRetries: 3`, and `emptyWaits: 0`. Exit code `2` means the trace is incomplete. Without `--short-waits`, this fixture exits `0` because it contains no empty waits.
+Expect exit code `1`, `shortWaitRetries: 1`, and `emptyWaits: 0`. Exit code `2` means the trace is incomplete. Without `--short-waits`, this fixture exits `0` because it contains no empty waits. The other fixtures, `interruptible-waits.jsonl` and `automatic-results.jsonl`, exit `0` under either policy. The fixtures preserve parent inference request starts and recorded token usage, including source gaps, for future waste accounting.
 
 For comparison limits, the optional empty-wait calibration, artifact details, and other checks, read [Run Codex tests](tests/codex/README.md).
 

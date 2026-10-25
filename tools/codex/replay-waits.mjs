@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
-import { analyzeWaitTrace } from "./wait-trace.mjs";
+import { analyzeWaitTrace } from "./lib/wait-trace.mjs";
 
 const shortWaits = process.argv[3] === "--short-waits";
 if (process.argv.length < 3 || process.argv.length > 4 || (process.argv.length === 4 && !shortWaits)) {
-  throw new Error("Usage: bun tests/codex/replay-waits.mjs <parent-rollout.jsonl> [--short-waits]");
+  throw new Error("Usage: bun tools/codex/replay-waits.mjs <parent-rollout.jsonl> [--short-waits]");
 }
 const rows = readFileSync(process.argv[2], "utf8").split(/\r?\n/).filter(Boolean).map((line) => JSON.parse(line));
 const result = analyzeWaitTrace(rows);

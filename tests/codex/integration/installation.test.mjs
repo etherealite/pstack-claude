@@ -3,11 +3,11 @@ import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { withCodex } from "./harness/harness.mjs";
-import { writeNativePlugin } from "./harness/native-plugin.mjs";
+import { withCodex } from "../harness/harness.mjs";
+import { writeNativePlugin } from "../harness/native-plugin.mjs";
 
 const suite = process.env.PSTACK_CODEX_INSTALL === "1" ? describe : describe.skip;
-const repo = fileURLToPath(new URL("../../", import.meta.url));
+const repo = fileURLToPath(new URL("../../../", import.meta.url));
 
 suite("native Codex plugin installation", () => {
   test("a generated plugin installs its skill source unchanged", async () => {

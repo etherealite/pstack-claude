@@ -1,6 +1,27 @@
-# Run Codex tests
+# Run Codex tests and benchmarks
 
-The suite separates detector correctness from live observations of agent behavior.
+The directories distinguish deterministic tests, credential-dependent integration tests, paid model benchmarks, and command-line tools:
+
+```text
+tests/codex/
+  *.test.mjs
+  fixtures/
+  harness/
+  integration/*.test.mjs
+benchmarks/codex/
+  waiting-controlled.mjs
+  waiting-control.mjs
+  waiting-full-inference.mjs
+  empty-wait-calibration.mjs
+  support/waiting-suite.mjs
+tools/codex/
+  replay-waits.mjs
+  sanitize-waits.mjs
+  lib/wait-trace.mjs
+```
+
+Files ending in `.test.mjs` are test suites. `harness`, `support`, and `lib` hold imported helpers.
+Files directly under `benchmarks/codex` are explicitly selected model runs; files directly under `tools/codex` are commands.
 
 | Files | Evidence | Requirements |
 | --- | --- | --- |
@@ -8,11 +29,13 @@ The suite separates detector correctness from live observations of agent behavio
 | `harness/controlled-workers.test.mjs` | Parent forwarding, local worker responses, refusal of paid worker fallbacks, and answer formatting. | Bun; no model calls. |
 | `wait-trace.test.mjs` | Agent states, pending delivery, empty waits, short retries, and incomplete traces. | Bun. |
 | `replay-waits.test.mjs` | Replay CLI output and exit codes. | Bun. |
-| `installation.test.mjs` | Real plugin installation preserves skill source. | Codex CLI and existing `PSTACK_CODEX_INSTALL=1`. |
-| `live.test.mjs` | A generated native plugin invokes its installed skill. | Codex credentials and existing `PSTACK_CODEX_LIVE=1`. |
-| `waiting.mjs` | Three explicit tests compare parent behavior with scheduled local worker responses. | ChatGPT credentials and explicit file selection; only parent inference goes upstream. |
-| `waiting-full-inference.mjs` | The same tests with real reviewer inference, for occasional calibration. | Codex credentials and explicit file selection; all four agents use inference. |
-| `waiting-calibration.mjs` | A deliberately forced empty wait checks the live trace format. | Codex credentials and explicit file selection. |
+| `sanitize-waits.test.mjs` | Fixture redaction preserves classifications, request boundaries, and recorded token usage. | Bun. |
+| `integration/installation.test.mjs` | Real plugin installation preserves skill source. | Codex CLI and existing `PSTACK_CODEX_INSTALL=1`. |
+| `integration/live.test.mjs` | A generated native plugin invokes its installed skill. | Codex credentials and existing `PSTACK_CODEX_LIVE=1`. |
+| `benchmarks/codex/waiting-controlled.mjs` | One current-checkout observation with scheduled local worker responses. | ChatGPT credentials and explicit file selection; only parent inference goes upstream. |
+| `benchmarks/codex/waiting-control.mjs` | One optional no-plugin control observation. | ChatGPT credentials and explicit file selection; only parent inference goes upstream. |
+| `benchmarks/codex/waiting-full-inference.mjs` | One current-checkout observation with real reviewers, for occasional calibration. | Codex credentials and explicit file selection; all four agents use inference. |
+| `benchmarks/codex/empty-wait-calibration.mjs` | A deliberately forced empty wait checks the live trace format. | Codex credentials and explicit file selection. |
 
 Run the deterministic suite without credentials or model calls.
 
@@ -20,60 +43,96 @@ Run the deterministic suite without credentials or model calls.
 bun test tests/codex
 ```
 
-The live waiting entry files omit `.test` in their filenames, so automatic discovery excludes them.
+The model benchmarks live outside the configured `tests` root and run only when explicitly selected by path.
 The existing installation and native invocation tests retain their existing switches.
 
-## Inspect the recorded reproduction
+## Replay recorded delegation behaviors
 
-The planning investigation captured repeated short waits on Codex CLI 0.163.0 with pstack 0.9.93 and `gpt-6.1-sol` at low effort.
-The original conversation made two waits with one timeout-and-retry transition.
-The isolated reproduction made five waits with three timeout-and-retry transitions.
-Its initial one-second request was clamped to ten seconds.
-Both recordings have zero empty waits. Waiting with no working agents remains unreproduced.
+The fixtures capture three behaviors from the corpus-free review on Codex CLI 0.163.0 with real parent inference and scripted workers.
+The polling and automatic-result runs use `gpt-6.1-sol @low`; the interruptible-wait run uses `gpt-6-luna @medium`.
 
-Replay the recordings without another model call.
+| Fixture | Waits | Timeouts | Short retries | Delivered worker results | Parent inference requests |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `active-worker-polling.jsonl` | 3 | 1 | 1 | 3 | 10 |
+| `interruptible-waits.jsonl` | 3 | 0 | 0 | 3 | 14 |
+| `automatic-results.jsonl` | 0 | 0 | 0 | 3 | 7 |
+
+All three have zero empty waits. Synthetic detector tests cover empty waits separately.
+The active-worker waits request ten seconds; the interruptible waits request one hour and return early on results.
+The automatic-results recording demonstrates that worker results arrive without explicit waits, while the parent still uses inference.
+These are behavior regression fixtures, not evidence of pstack causation or a ranking of efficiency.
+They replace the overlapping planning recordings, which remain in Git history.
+
+Replay without another model call:
 
 ```powershell
-bun tests/codex/replay-waits.mjs tests/codex/fixtures/planning-original.jsonl --short-waits
-bun tests/codex/replay-waits.mjs tests/codex/fixtures/planning-live.jsonl --short-waits
+bun tools/codex/replay-waits.mjs tests/codex/fixtures/active-worker-polling.jsonl --short-waits
+bun tools/codex/replay-waits.mjs tests/codex/fixtures/interruptible-waits.jsonl --short-waits
+bun tools/codex/replay-waits.mjs tests/codex/fixtures/automatic-results.jsonl --short-waits
 ```
 
-Both exit with code 1 and report one and three short wait retries respectively.
-Without `--short-waits`, both exit with code 0 because their agents were working.
-For other rollouts, exit code 2 means evidence is incomplete.
+The polling fixture exits with code 1 under `--short-waits`, reporting one retry.
+The other two exit with code 0 under both replay policies.
+Without `--short-waits`, all three exit with code 0 because none contains an empty wait.
+Exit code 2 means evidence is incomplete.
 
-`planning-original.jsonl` comes from the conversation at 2026-10-19 08:17 UTC, thread `01a152e3-87cb-7442-b7ba-f070ab941cdc`.
-`planning-live.jsonl` comes from the isolated run at 10:50 UTC, thread `01a153c9-385c-7143-89f6-cfc8120d1b15`.
-The fixtures retain tool identities, timestamps, agent activity, wait arguments, results, messages, and turn boundaries.
-They omit personal metadata, reasoning, token counters, and command and report contents.
-Independent tool calls remain present so omissions cannot make useful work look like polling.
+`fixtures/manifest.json` records source comparison blocks, conditions, thread IDs, expected metrics, and token totals.
+The polling fixture comes from the current-pstack condition in the 2026-10-24 `t3FYKH` block.
+The interruptible fixture comes from the current-pstack Luna-medium run in block `NH9OXl`, without any intervention to the skills.
+The automatic-results fixture comes from the without-pstack condition in the earlier `TGxOu4` block.
 
-## Compare instructions on a corpus-free review
+The fixtures retain tool identities, independent tool calls, timestamps, worker lifecycle events, message kinds, parent message boundaries, turn boundaries, model settings, and recorded token usage.
+Tool inputs and outputs, reports, instructions, reasoning content, credentials, local paths, and other personal metadata are omitted.
+Sanitization preserves detector results; independent tool calls cannot disappear and make useful work look like polling.
 
-Run the three named cases, or select one with Bun.
-The default live suite keeps parent inference real and serves worker responses through a local provider proxy.
+Rows with type `proxy_request` are derived from the proxy log and identify actual parent inference request starts.
+They are explicitly distinct from native Codex rollout events.
+Native `token_usage_record` rows retain response IDs and per-response usage; `token_count` rows retain last and cumulative usage.
+Do not count token updates as inference requests or sum cumulative counters as costs.
+The sources contain 9 usage records for 10 polling requests, 14 for 14 interruptible requests, and 6 for 7 automatic-result requests.
+Those gaps are preserved. Missing per-response usage must remain unknown when attributing future waste metrics.
+
+To sanitize another saved controlled run:
 
 ```powershell
-bun test ./tests/codex/waiting.mjs
-bun test ./tests/codex/waiting.mjs --test-name-pattern current-pstack
-bun test ./tests/codex/waiting.mjs --rerun-each=5 --randomize --seed=42
+bun tools/codex/sanitize-waits.mjs parent-rollout.jsonl controlled-workers.json fixture.jsonl
+```
+
+## Iterate from a saved baseline
+
+The default entry runs `current-pstack` once against the checkout where it is invoked.
+It keeps parent inference real and serves worker responses through a local provider proxy.
+
+```powershell
+bun test ./benchmarks/codex/waiting-controlled.mjs
+```
+
+Record the unchanged reproduction branch once and retain the printed result directory as the baseline.
+Implement skill changes in a separate fix branch or worktree based on the reproduction commit.
+Run the same command in that worktree to measure only the candidate; it does not rerun a baseline or patch the skill instructions.
+Start with one candidate observation per edit. Repeat promising or ambiguous observations deliberately, using Bun's `--rerun-each` when needed.
+
+Reuse baseline results while the task, parent model and effort, worker timing profile, and Codex runtime remain unchanged.
+Refresh the baseline when those conditions change or a confirmation run is justified.
+The no-plugin control is a separate, optional command, not the previous revision of pstack:
+
+```powershell
+bun test ./benchmarks/codex/waiting-control.mjs
 ```
 
 Run full inference only when calibrating against real reviewer behavior:
 
 ```powershell
-bun test ./tests/codex/waiting-full-inference.mjs
-bun test ./tests/codex/waiting-full-inference.mjs --test-name-pattern current-pstack
+bun test ./benchmarks/codex/waiting-full-inference.mjs
 ```
 
-Both entry files register the same explicit tests from `waiting-suite.mjs` with different session helpers.
+The entry files share the workload and validation in `benchmarks/codex/support/waiting-suite.mjs`, using different session helpers or selecting the no-plugin control at registration time.
 They share the task, reviewer settings, assertions, and report format. No environment variable selects the mode.
 
 | Test | Assigned instructions |
 | --- | --- |
 | `without-pstack` | No plugin installed or activated. |
-| `current-pstack` | Current pstack, with its interrogate workflow. This is also the live reproduction case. |
-| `guided-pstack` | The same workflow, with only the wait mapping changed in its isolated installed copy. |
+| `current-pstack` | The current checkout, with its unmodified interrogate workflow and runtime mapping. It is the original behavior on the reproduction branch and the candidate on a fix branch. |
 
 All cases ask three independent reviewers to check two mathematical claims supplied entirely in the prompt.
 Claim A gives an exact count of integers divisible by exactly three of ten specified primes.
@@ -81,8 +140,8 @@ Claim B incorrectly applies a linear binary-string count to a labeled circle.
 The parent consolidates findings as they arrive and returns proofs and corrected counts after receiving all three reviewers' results.
 Every session starts with an empty workspace. No task files or external sources are supplied.
 The baseline receives no pstack instructions or documents.
-The plugin cases invoke `interrogate` without explicitly requesting a mapping read; the workflow itself directs that read.
-Historical planning fixtures remain available for detector replay and are not inputs to this task.
+The current-checkout case invokes `interrogate` without explicitly requesting a mapping read; the workflow itself directs that read.
+Recorded behavior fixtures are available for detector replay and are not inputs to this task.
 
 In the default mode, the proxy identifies workers using Codex's request metadata, outside the model conversation.
 Only root inference and model-catalog requests are forwarded to the authenticated ChatGPT backend.
@@ -100,10 +159,8 @@ Unsupported or repeated worker requests fail instead of falling back to paid inf
 Each session permits at most 30 parent inference requests and disables automatic request and stream retries.
 Each controlled trial asserts three local worker responses, successful real parent inference, and zero upstream worker requests.
 
-The proposed guidance requests 60-second interruptible waits only when needed.
-It also forbids waiting with no working agents or pending results.
-The checkout's instructions remain unchanged.
-Both plugin cases must receive their assigned mapping in parent tool output before delegation.
+The benchmark never patches the installed skill instructions or wait mapping.
+The current-checkout case must receive its installed mapping in parent tool output before delegation.
 Skill activation alone does not establish mapping exposure.
 
 Tests assert execution, delegation, worker model and effort, final-answer checks, trace completeness, and instruction exposure.
@@ -115,10 +172,9 @@ The answer checks require the correct counts, `132057411984` and `79068200083062
 Ordinary commas and LaTeX thin-space separators (`\,`) are accepted.
 Inspect the saved answer and reviewer reports for substantive proof accuracy; number presence alone does not validate the proofs.
 
-Each file run prints a comparison directory containing one result per selected condition and `comparison.json`.
-The comparison retains invalid trials and their errors.
-Contrasts are produced only when all three cases yield valid observations.
-They report current-minus-baseline and guided-minus-current retry and timeout counts, not a statistical causal verdict.
+Each invocation prints a result directory containing the condition's JSON file and `run.json`.
+The report is complete when that one observation is valid; it does not require control runs.
+It retains invalid observations and their errors. Compare saved baseline and candidate reports rather than regenerating baselines for every edit.
 The report records the common task hash, reviewer panel, installed skill and mapping hashes, and actual mapping exposure before delegation and waiting.
 It also records `workerMode`; controlled trials include routing and timing evidence in `workerControl`.
 Compare instruction conditions within one mode rather than combining controlled and full-inference observations.
@@ -127,11 +183,10 @@ Artifacts remain available after successful runs; copied credentials are removed
 
 Compare repeated outcomes and worker durations before interpreting count differences.
 A short worker run with no polling opportunity cannot establish that a change fixed polling.
-Current exceeding baseline supports an activation effect on this task.
-Guided improving current supports the guidance; by itself, that does not prove pstack caused the original polling.
+Comparing current pstack with the optional no-plugin control examines activation on this task.
+An improvement on the fix branch supports that candidate on this task; it does not prove pstack caused the original polling.
 Scripted reports can change parent behavior relative to real reviews. The full-inference entry provides calibration for that limitation.
-Five runs are an exploratory starting point, not a power calculation.
-Use different recorded seeds to vary order across batches; a fixed seed can repeat the same order.
+Single observations can vary; repeat only when the evidence warrants the additional inference.
 
 The parent defaults are `gpt-6.1-sol` and `low`.
 Existing `PSTACK_CODEX_LIVE_MODEL` and `PSTACK_CODEX_WAIT_EFFORT` settings override the parent for all conditions.
@@ -145,7 +200,7 @@ Hooks remain disabled to isolate explicit activation.
 Run this diagnostic only when checking that the detector recognizes the host's live empty-wait events.
 
 ```powershell
-bun test ./tests/codex/waiting-calibration.mjs
+bun test ./benchmarks/codex/empty-wait-calibration.mjs
 ```
 
 It deliberately requests one empty wait and verifies the captured timeout.

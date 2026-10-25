@@ -2,8 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { withCodex } from "./harness/harness.mjs";
-import { writeNativePlugin } from "./harness/native-plugin.mjs";
+import { withCodex } from "../harness/harness.mjs";
+import { writeNativePlugin } from "../harness/native-plugin.mjs";
 
 const suite = process.env.PSTACK_CODEX_LIVE === "1" ? describe : describe.skip;
 

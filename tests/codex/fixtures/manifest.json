@@ -1,0 +1,91 @@
+[
+  {
+    "file": "active-worker-polling.jsonl",
+    "block": "pstack-review-results-t3FYKH",
+    "condition": "current-pstack",
+    "workerMode": "controlled",
+    "thread": "01a16df3-b3e5-7802-88bb-deabd1d6edf5",
+    "cliVersion": "0.163.0",
+    "model": "gpt-6.1-sol",
+    "effort": "low",
+    "spawns": 3,
+    "waits": 3,
+    "requestedTimeoutsMs": [
+      10000,
+      10000,
+      10000
+    ],
+    "timedOutWaits": 1,
+    "shortWaitRetries": 1,
+    "emptyWaits": 0,
+    "deliveredFinalAnswers": 3,
+    "parentRequests": 10,
+    "responseUsageRecords": 9,
+    "finalTokenUsage": {
+      "input_tokens": 233863,
+      "cached_input_tokens": 205568,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 2370,
+      "reasoning_output_tokens": 35,
+      "total_tokens": 236233
+    }
+  },
+  {
+    "file": "interruptible-waits.jsonl",
+    "block": "pstack-review-results-NH9OXl",
+    "condition": "current-pstack",
+    "workerMode": "controlled",
+    "thread": "01a16dfd-659c-79e0-869e-547758328f47",
+    "cliVersion": "0.163.0",
+    "model": "gpt-6-luna",
+    "effort": "medium",
+    "spawns": 3,
+    "waits": 3,
+    "requestedTimeoutsMs": [
+      3600000,
+      3600000,
+      3600000
+    ],
+    "timedOutWaits": 0,
+    "shortWaitRetries": 0,
+    "emptyWaits": 0,
+    "deliveredFinalAnswers": 3,
+    "parentRequests": 14,
+    "responseUsageRecords": 14,
+    "finalTokenUsage": {
+      "input_tokens": 404740,
+      "cached_input_tokens": 378112,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 5942,
+      "reasoning_output_tokens": 3105,
+      "total_tokens": 410682
+    }
+  },
+  {
+    "file": "automatic-results.jsonl",
+    "block": "pstack-review-results-TGxOu4",
+    "condition": "without-pstack",
+    "workerMode": "controlled",
+    "thread": "01a16de6-b24c-7043-b7fb-01b5b2d2aea5",
+    "cliVersion": "0.163.0",
+    "model": "gpt-6.1-sol",
+    "effort": "low",
+    "spawns": 3,
+    "waits": 0,
+    "requestedTimeoutsMs": [],
+    "timedOutWaits": 0,
+    "shortWaitRetries": 0,
+    "emptyWaits": 0,
+    "deliveredFinalAnswers": 3,
+    "parentRequests": 7,
+    "responseUsageRecords": 6,
+    "finalTokenUsage": {
+      "input_tokens": 76063,
+      "cached_input_tokens": 65920,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 1773,
+      "reasoning_output_tokens": 16,
+      "total_tokens": 77836
+    }
+  }
+]

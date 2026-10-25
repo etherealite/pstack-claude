@@ -5,13 +5,11 @@ import { join } from "node:path";
 import { mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
-import { analyzeWaitTrace } from "./wait-trace.mjs";
+import { analyzeWaitTrace } from "../../../tools/codex/lib/wait-trace.mjs";
 
-const repo = fileURLToPath(new URL("../../", import.meta.url));
+const repo = fileURLToPath(new URL("../../../", import.meta.url));
 const model = process.env.PSTACK_CODEX_LIVE_MODEL || "gpt-6.1-sol";
 const effort = process.env.PSTACK_CODEX_WAIT_EFFORT || "low";
-const mapping = "| Wait for a subagent result | `wait_agent` |";
-const guidance = "| Wait for a subagent result | `wait_agent`. Wait only when an unfinished agent's result is needed and no independent work remains. Use timeout_ms: 60000 instead of repeated short waits. Incoming messages end the wait early. Never wait when no agents are working and no results are pending. |";
 const panel = [
   { model: "gpt-6.1-sol", effort: "xhigh" },
   { model: "gpt-6-astra", effort: "medium" },
@@ -32,7 +30,7 @@ export function assertReviewAnswers(answer) {
   expect(normalized).toMatch(/\b79068200083062153040\b/);
 }
 
-export function defineWaitingTests({ withSession, workerMode }) {
+export function defineWaitingTests({ withSession, workerMode, control = false }) {
   const block = randomUUID();
   const trials = [];
   let report;
@@ -152,33 +150,23 @@ export function defineWaitingTests({ withSession, workerMode }) {
   describe("independent mathematical review", () => {
     beforeAll(() => {
       report = mkdtempSync(join(tmpdir(), "pstack-review-results-"));
-      console.log(`Review comparison artifacts: ${report}`);
+      console.log(`Review benchmark artifacts: ${report}`);
     });
 
     afterAll(() => {
-      const byCondition = Object.fromEntries(trials.map(trial => [trial.condition, trial]));
-      const baseline = byCondition["without-pstack"];
-      const current = byCondition["current-pstack"];
-      const guided = byCondition["guided-pstack"];
-      const complete = trials.length === 3 && trials.every(trial => trial.valid);
-      const contrasts = complete ? {
-        currentMinusBaselineRetries: current.shortWaitRetries - baseline.shortWaitRetries,
-        guidedMinusCurrentRetries: guided.shortWaitRetries - current.shortWaitRetries,
-        currentMinusBaselineTimeouts: current.timedOutWaits - baseline.timedOutWaits,
-        guidedMinusCurrentTimeouts: guided.timedOutWaits - current.timedOutWaits,
-      } : null;
-      writeFileSync(join(report, "comparison.json"), JSON.stringify({
-        block, model, effort, panel, workerMode, taskSha256: createHash("sha256").update(task).digest("hex"), complete, contrasts, trials,
+      const complete = trials.length === 1 && trials.every(trial => trial.valid);
+      writeFileSync(join(report, "run.json"), JSON.stringify({
+        block, model, effort, panel, workerMode, taskSha256: createHash("sha256").update(task).digest("hex"), complete, trials,
       }, null, 2));
     });
 
-    test("without-pstack", async () => {
+    if (control) test("without-pstack", async () => {
       await withReviewSession("without-pstack", async context => {
         await observeReview(context, task);
       });
     }, 540_000);
 
-    test("current-pstack", async () => {
+    else test("current-pstack", async () => {
       await withReviewSession("current-pstack", async context => {
         const { skill, tools } = await installPstack(context);
         const original = readFileSync(tools, "utf8");
@@ -187,16 +175,5 @@ export function defineWaitingTests({ withSession, workerMode }) {
       });
     }, 540_000);
 
-    test("guided-pstack", async () => {
-      await withReviewSession("guided-pstack", async context => {
-        const { skill, tools } = await installPstack(context);
-        const original = readFileSync(tools, "utf8");
-        expect(original.split(mapping)).toHaveLength(2);
-        const amended = original.replace(mapping, guidance);
-        writeFileSync(tools, amended);
-        const trace = await observeReview(context, pstackPrompt(skill));
-        recordExposure(context, trace, amended);
-      });
-    }, 540_000);
   });
 }

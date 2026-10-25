@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { analyzeWaitTrace } from "./wait-trace.mjs";
+import { analyzeWaitTrace } from "../../tools/codex/lib/wait-trace.mjs";
 
 const row = (second, type, payload) => ({ timestamp: new Date(Date.UTC(2026, 9, 19, 10, 12, second)).toISOString(), type, payload });
 const call = (second, name, callId, args = {}) => row(second, "response_item", { type: "function_call", namespace: "collaboration", name, call_id: callId, status: "completed", arguments: JSON.stringify(args) });
@@ -16,17 +16,44 @@ const spawn = (second = 1, task = "alpha_reader") => [
 ];
 const wait = (second, id = "wait", timedOut = true) => [call(second, "wait_agent", id, { timeout_ms: 30000 }), output(second + 30, id, { message: "Wait completed.", timed_out: timedOut })];
 
-test.each([
-  ["planning-original", [10000, 10000], 1],
-  ["planning-live", [1000, 10000, 10000, 10000, 10000], 3],
-])("%s captures repeated short waits separately from empty waits", (name, timeouts, retries) => {
-  const rows = readFileSync(new URL(`./fixtures/${name}.jsonl`, import.meta.url), "utf8").trim().split(/\r?\n/).map(JSON.parse);
+const fixture = name => readFileSync(new URL(`./fixtures/${name}.jsonl`, import.meta.url), "utf8").trim().split(/\r?\n/).map(JSON.parse);
+
+test("recorded active-worker polling contains a short retry but no empty wait", () => {
+  const rows = fixture("active-worker-polling");
   const result = analyzeWaitTrace(rows);
   expect(result.coverage.complete).toBe(true);
+  expect(result.spawns).toHaveLength(3);
+  expect(result.coverage.finalAnswers).toBe(3);
   expect(result.emptyWaits).toHaveLength(0);
-  expect(result.waits.map((entry) => entry.args.timeout_ms)).toEqual(timeouts);
-  expect(result.shortWaitRetries).toHaveLength(retries);
+  expect(result.waits.map(entry => entry.args.timeout_ms)).toEqual([10000, 10000, 10000]);
+  expect(result.waits.filter(entry => entry.timedOut)).toHaveLength(1);
+  expect(result.shortWaitRetries).toHaveLength(1);
   expect(result.shortWaitRetries[0]).toBe(result.waits[1]);
+  expect(rows.filter(row => row.type === "proxy_request")).toHaveLength(10);
+});
+
+test("recorded long waits return on results before their timeout", () => {
+  const rows = fixture("interruptible-waits");
+  const result = analyzeWaitTrace(rows);
+  expect(result.coverage.complete).toBe(true);
+  expect(result.coverage.finalAnswers).toBe(3);
+  expect(result.waits.map(entry => entry.args.timeout_ms)).toEqual([3600000, 3600000, 3600000]);
+  expect(result.waits.every(entry => !entry.timedOut && entry.durationMs < entry.args.timeout_ms)).toBe(true);
+  expect(result.shortWaitRetries).toHaveLength(0);
+  expect(result.emptyWaits).toHaveLength(0);
+  expect(rows.filter(row => row.type === "proxy_request")).toHaveLength(14);
+});
+
+test("recorded results arrive without wait calls while the parent still uses inference", () => {
+  const rows = fixture("automatic-results");
+  const result = analyzeWaitTrace(rows);
+  expect(result.coverage.complete).toBe(true);
+  expect(result.spawns).toHaveLength(3);
+  expect(result.coverage.finalAnswers).toBe(3);
+  expect(result.waits).toHaveLength(0);
+  expect(result.shortWaitRetries).toHaveLength(0);
+  expect(result.emptyWaits).toHaveLength(0);
+  expect(rows.filter(row => row.type === "proxy_request")).toHaveLength(7);
 });
 
 test.each(["function_call", "custom_tool_call"])("a longer wait and %s work between short waits are not short wait retries", (type) => {

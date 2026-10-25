@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { withCodex } from "./harness/harness.mjs";
-import { analyzeWaitTrace } from "./wait-trace.mjs";
+import { withCodex } from "../../tests/codex/harness/harness.mjs";
+import { analyzeWaitTrace } from "../../tools/codex/lib/wait-trace.mjs";
 
 test("empty-wait-control calibrates the live trace format", async () => {
   await withCodex(async ({ root, exec, session }) => {

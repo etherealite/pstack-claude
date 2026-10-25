@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const script = fileURLToPath(new URL("./replay-waits.mjs", import.meta.url));
+const script = fileURLToPath(new URL("../../tools/codex/replay-waits.mjs", import.meta.url));
 const row = (second, type, payload) => ({ timestamp: new Date(Date.UTC(2026, 9, 19, 0, 0, second)).toISOString(), type, payload });
 const meta = row(0, "session_meta", { id: "parent" });
 const start = (second) => row(second, "event_msg", { type: "task_started" });
@@ -55,11 +55,20 @@ test("replay exits two when a wait has no recorded result", () => {
   expect(result.summary.complete).toBe(false);
 });
 
-test("the historical short wait pattern fails only when that policy is selected", () => {
-  const fixture = fileURLToPath(new URL("./fixtures/planning-original.jsonl", import.meta.url));
+test("recorded active-worker polling fails only when the short-wait policy is selected", () => {
+  const fixture = fileURLToPath(new URL("./fixtures/active-worker-polling.jsonl", import.meta.url));
   const ordinary = spawnSync(process.execPath, [script, fixture], { encoding: "utf8", timeout: 10_000 });
   const strict = spawnSync(process.execPath, [script, fixture, "--short-waits"], { encoding: "utf8", timeout: 10_000 });
   expect(ordinary.status).toBe(0);
   expect(strict.status).toBe(1);
   expect(JSON.parse(strict.stdout)).toMatchObject({ complete: true, emptyWaits: 0, shortWaitRetries: 1 });
+});
+
+test.each(["interruptible-waits", "automatic-results"])("%s passes both replay policies", name => {
+  const fixture = fileURLToPath(new URL(`./fixtures/${name}.jsonl`, import.meta.url));
+  const ordinary = spawnSync(process.execPath, [script, fixture], { encoding: "utf8", timeout: 10_000 });
+  const strict = spawnSync(process.execPath, [script, fixture, "--short-waits"], { encoding: "utf8", timeout: 10_000 });
+  expect(ordinary.status).toBe(0);
+  expect(strict.status).toBe(0);
+  expect(JSON.parse(strict.stdout)).toMatchObject({ complete: true, spawns: 3, coverage: { finalAnswers: 3 }, emptyWaits: 0, shortWaitRetries: 0 });
 });

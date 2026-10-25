@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { assertControlledWorkers, createWorkerProxy } from "./controlled-workers.mjs";
-import { assertReviewAnswers } from "../waiting-suite.mjs";
+import { assertReviewAnswers } from "../../../benchmarks/codex/support/waiting-suite.mjs";
 
 function inferenceRequest(proxy, metadata, body = "{}") {
   return fetch(`${proxy.url}/v1/responses`, { method: "POST", body,
