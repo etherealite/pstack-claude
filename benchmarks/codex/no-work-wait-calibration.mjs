@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { withCodex } from "../../tests/codex/harness/harness.mjs";
 import { analyzeWaitTrace } from "../../tools/codex/lib/wait-trace.mjs";
 
-test("empty-wait-control calibrates the live trace format", async () => {
+test("no-work-wait-control calibrates the live trace format", async () => {
   await withCodex(async ({ root, exec, session }) => {
     const prompt = "Spawn no agents. Call collaboration.wait_agent exactly once with timeout_ms: 10000. After it returns, reply calibrated. This is an intentional trace calibration.";
     writeFileSync(join(root, "prompt.txt"), prompt);
@@ -17,7 +17,7 @@ test("empty-wait-control calibrates the live trace format", async () => {
     expect(result.coverage.complete).toBe(true);
     expect(result.spawns).toHaveLength(0);
     expect(result.waits).toHaveLength(1);
-    expect(result.emptyWaits).toHaveLength(1);
-    expect(result.emptyWaits[0].timedOut).toBe(true);
+    expect(result.noOutstandingWorkWaits).toHaveLength(1);
+    expect(result.noOutstandingWorkWaits[0].timedOut).toBe(true);
   }, { env: { ...process.env, PSTACK_CODEX_LIVE_KEEP: "1" } });
 }, 240_000);

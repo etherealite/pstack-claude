@@ -1,100 +1,112 @@
 # Run Codex tests and benchmarks
 
-The directories distinguish deterministic tests, credential-dependent integration tests, paid model benchmarks, and command-line tools:
-
-```text
-tests/codex/
-  *.test.mjs
-  fixtures/
-  harness/
-  integration/*.test.mjs
-benchmarks/codex/
-  waiting-controlled.mjs
-  waiting-control.mjs
-  waiting-full-inference.mjs
-  empty-wait-calibration.mjs
-  support/waiting-suite.mjs
-  support/waiting-report.mjs
-tools/codex/
-  replay-waits.mjs
-  sanitize-waits.mjs
-  lib/wait-trace.mjs
-  lib/skill-exposure.mjs
-```
-
-Files ending in `.test.mjs` are test suites. `harness`, `support`, and `lib` hold imported helpers.
-Files directly under `benchmarks/codex` are explicitly selected model runs; files directly under `tools/codex` are commands.
-
-| Files | Evidence | Requirements |
-| --- | --- | --- |
-| `harness/harness.test.mjs` | Isolated sessions, CLI arguments, authentication cleanup, logs, and rollout lookup through a scripted CLI. | Bun. |
-| `harness/controlled-workers.test.mjs` | Parent forwarding, local worker responses, refusal of paid worker fallbacks, and answer formatting. | Bun; no model calls. |
-| `wait-trace.test.mjs` | Agent states, pending delivery, empty waits, short retries, and incomplete traces. | Bun. |
-| `replay-waits.test.mjs` | Replay CLI output and exit codes. | Bun. |
-| `sanitize-waits.test.mjs` | Fixture redaction preserves classifications, request boundaries, and recorded token usage. | Bun. |
-| `skill-exposure.test.mjs` | Skill content matching, partial excerpts, call evidence, and exclusion of mere path mentions. | Bun. |
-| `waiting-report.test.mjs` | Console metrics preserve undesirable behavior and distinguish missing measurements from zero. | Bun. |
-| `integration/installation.test.mjs` | Real plugin installation preserves skill source. | Codex CLI and existing `PSTACK_CODEX_INSTALL=1`. |
-| `integration/live.test.mjs` | A generated native plugin invokes its installed skill. | Codex credentials and existing `PSTACK_CODEX_LIVE=1`. |
-| `benchmarks/codex/waiting-controlled.mjs` | One current-checkout observation with scheduled local worker responses. | ChatGPT credentials and explicit file selection; only parent inference goes upstream. |
-| `benchmarks/codex/waiting-control.mjs` | One optional no-plugin control observation. | ChatGPT credentials and explicit file selection; only parent inference goes upstream. |
-| `benchmarks/codex/waiting-full-inference.mjs` | One current-checkout observation with real reviewers, for occasional calibration. | Codex credentials and explicit file selection; all four agents use inference. |
-| `benchmarks/codex/empty-wait-calibration.mjs` | A deliberately forced empty wait checks the live trace format. | Codex credentials and explicit file selection. |
-
-Run the deterministic suite without credentials or model calls.
+Run commands from the repository root. Deterministic tests need Bun and make no model calls:
 
 ```powershell
 bun test tests/codex
 ```
 
-The model benchmarks live outside the configured `tests` root and run only when explicitly selected by path.
-The existing installation and native invocation tests retain their existing switches.
+Files ending in `.test.mjs` live under `tests/codex`, with shared helpers in `harness` and fixtures in `fixtures`.
+Credential-dependent integration tests live in `tests/codex/integration` and skip unless enabled.
+Paid benchmarks live outside Bun's configured test root in `benchmarks/codex`; select an entry explicitly by path.
+`tools/codex` contains replay and sanitization commands, with imported helpers in `lib`.
 
-## Replay recorded delegation behaviors
+| Test | Evidence | Additional requirements |
+| --- | --- | --- |
+| `harness/harness.test.mjs` | Session isolation, CLI arguments, credential cleanup, logs, and rollout lookup. | None. |
+| `harness/controlled-workers.test.mjs` | Worker routing, scripted responses, forwarding, and refusal of paid fallbacks. | None. |
+| `wait-trace.test.mjs` | Lifecycle and delivery facts, short timeout rewaits, explicit scenario assessments, and incomplete traces. | None. |
+| `replay-waits.test.mjs` | Replay output, expectation validation, and exit codes. | None. |
+| `sanitize-waits.test.mjs` | Redaction preserves measurements, request boundaries, and recorded token usage. | None. |
+| `skill-exposure.test.mjs` | Full and partial content matches, call evidence, and exclusion of path mentions. | None. |
+| `waiting-report.test.mjs` | Reports distinguish observed facts, assessments, missing measurements, and zero. | None. |
+| `integration/installation.test.mjs` | Real plugin installation preserves skill source. | Codex CLI; `PSTACK_CODEX_INSTALL=1`. |
+| `integration/live.test.mjs` | A generated native plugin invokes its installed skill. | Codex credentials; `PSTACK_CODEX_LIVE=1`. |
+| `integration/local-mailbox.test.mjs` | The installed CLI executes messages, returns from active waits, and receives a later final answer. | Codex CLI; `PSTACK_CODEX_LOCAL=1`; no credentials or inference. |
 
-The fixtures capture three behaviors from the corpus-free review on Codex CLI 0.163.0 with real parent inference and scripted workers.
-The polling and automatic-result runs use `gpt-6.1-sol @low`; the interruptible-wait run uses `gpt-6-luna @medium`.
+The installation and native invocation tests retain their existing switches. See the root README's [Windows development instructions](../../README.md#develop-pstack-locally-on-windows) for committed snapshots and native-test credential handling.
 
-| Fixture | Waits | Timeouts | Short retries | Delivered worker results | Parent inference requests |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| `active-worker-polling.jsonl` | 3 | 1 | 1 | 3 | 10 |
-| `interruptible-waits.jsonl` | 3 | 0 | 0 | 3 | 14 |
-| `automatic-results.jsonl` | 0 | 0 | 0 | 3 | 7 |
+## Replay facts and assess explicit scenarios
 
-All three have zero empty waits. Synthetic detector tests cover empty waits separately.
-The active-worker waits request ten seconds; the interruptible waits request one hour and return early on results.
-The automatic-results recording demonstrates that worker results arrive without explicit waits, while the parent still uses inference.
-These are behavior regression fixtures, not evidence of pstack causation or a ranking of efficiency.
-They replace the overlapping planning recordings, which remain in Git history.
-
-Replay without another model call:
+Replay a recorded trace without another model call:
 
 ```powershell
-bun tools/codex/replay-waits.mjs tests/codex/fixtures/active-worker-polling.jsonl --short-waits
-bun tools/codex/replay-waits.mjs tests/codex/fixtures/interruptible-waits.jsonl --short-waits
-bun tools/codex/replay-waits.mjs tests/codex/fixtures/automatic-results.jsonl --short-waits
+bun tools/codex/replay-waits.mjs tests/codex/fixtures/active-worker-polling.jsonl
+bun tools/codex/replay-waits.mjs tests/codex/fixtures/interruptible-waits.jsonl
+bun tools/codex/replay-waits.mjs tests/codex/fixtures/automatic-results.jsonl
+bun tools/codex/replay-waits.mjs tests/codex/fixtures/synthetic-mailbox.jsonl
 ```
 
-The polling fixture exits with code 1 under `--short-waits`, reporting one retry.
-The other two exit with code 0 under both replay policies.
-Without `--short-waits`, all three exit with code 0 because none contains an empty wait.
-Exit code 2 means evidence is incomplete.
+Raw replay exits `0` for complete evidence and `2` for incomplete evidence. It does not select a behavior policy.
+`analyzeWaitTrace` reconstructs tracked worker activity, result delivery, waits, and messages. Its facts include `noOutstandingWorkWaits` and `shortTimeoutRewaits`.
+The `trackedWork` value `no_outstanding_work_at_entry` records no outstanding tracked work. This means no tracked active work or pending result at entry; it does not mean the mailbox is empty or a receive is unnecessary.
+Wait records preserve `timeoutMs`, duration, entry worker states, and nearby messages separately.
 
-`fixtures/manifest.json` records source comparison blocks, conditions, thread IDs, expected metrics, and token totals.
-The polling fixture comes from the current-pstack condition in the 2026-10-24 `t3FYKH` block.
-The interruptible fixture comes from the current-pstack Luna-medium run in block `NH9OXl`, without any intervention to the skills.
-The automatic-results fixture comes from the without-pstack condition in the earlier `TGxOu4` block.
+An ordinary `MESSAGE` becomes `ordinary_message`, counted by `ordinaryMessages`. It can contain a question or blocker and does not establish progress or completion.
+Final result delivery and lifecycle completion are separate events. Delivery does not prove that the parent consumed the result.
+Short timeout rewaits describe a timeout followed by another short wait with unchanged active work. Selected tool calls, user input, and lifecycle transitions break the pattern.
+The detector does not assess whether intervening reasoning or parent messages are useful.
+Ordinary messages, including unrelated messages, do not erase that pattern. The pattern alone does not prove wasted inference.
 
-The fixtures retain tool identities, independent tool calls, timestamps, worker lifecycle events, message kinds, parent message boundaries, turn boundaries, model settings, and recorded token usage.
-Tool inputs and outputs, reports, instructions, reasoning content, credentials, local paths, and other personal metadata are omitted.
-Sanitization preserves detector results; independent tool calls cannot disappear and make useful work look like polling.
+To assess a declared scenario, supply an expectations file:
 
-Rows with type `proxy_request` are derived from the proxy log and identify actual parent inference request starts.
-They are explicitly distinct from native Codex rollout events.
-Native `token_usage_record` rows retain response IDs and per-response usage; `token_count` rows retain last and cumulative usage.
-Do not count token updates as inference requests or sum cumulative counters as costs.
-The sources contain 9 usage records for 10 polling requests, 14 for 14 interruptible requests, and 6 for 7 automatic-result requests.
-Those gaps are preserved. Missing per-response usage must remain unknown when attributing future waste metrics.
+```powershell
+bun tools/codex/replay-waits.mjs scenario.jsonl --expectations scenario.json
+```
+
+The file contains an array of expectations, keyed by the recorded wait's `callId`:
+
+```json
+[
+	{
+		"callId": "wait-1",
+		"requiredAgents": ["/root/reviewer"],
+		"mailboxReceive": "not-required",
+		"independentWork": "exhausted"
+	}
+]
+```
+
+`assessWaits` evaluates these declarations separately from trace reconstruction:
+
+- `requiredAgents` names agents whose `FINAL_ANSWER` delivery is required at that wait's entry. `[]` explicitly declares none; omission leaves requiredness unknown.
+- `mailboxReceive` is `required` or `not-required`, including a receive needed after tracked work has finished.
+- `independentWork` is `available` or `exhausted`. The analyzer does not infer availability from silence or tool calls.
+
+Available independent work fails the declared waiting rule. With independent work exhausted, an outstanding required result or a required mailbox receive supports waiting.
+Known absence of both fails. Missing declarations or unobservable prerequisites leave the assessment unknown.
+With expectations selected, replay exits `0` for pass, `1` for fail, and `2` for unknown or incomplete evidence.
+Malformed expectations and unknown or duplicate wait IDs exit `2`. Required agents absent from the trace remain unknown.
+Known failures take precedence over unknown assessments; incomplete trace evidence always exits `2`.
+
+Nearby-message evidence covers messages during the call or within 100 ms after a non-timeout return, before the next parent action.
+That window is observational and does not establish why the host returned. An unexplained return retains no inferred cause.
+Missing or reversed timestamps, overlapping waits, unrelated recipients, and later deliveries do not receive ambiguous associations.
+A timeout can still contain ordinary messages observed during its interval.
+
+### Interpret fixture provenance and accounting
+
+The three recorded fixtures come from a corpus-free review on Codex CLI 0.163.0, with real parent inference and scripted workers.
+Polling and automatic-result runs use `gpt-6.1-sol @low`; interruptible waits use `gpt-6-luna @medium`.
+The polling fixture contains three waits, one timeout, and one short timeout rewait. Interruptible waits contain three waits with no timeout; automatic results contain no waits.
+All three have zero waits with no outstanding tracked work. These are behavior fixtures, not evidence of pstack causation or an efficiency ranking.
+`synthetic-mailbox.jsonl` is constructed and covers ordinary messages after a return, messages during a rewait, and a later final answer.
+
+`fixtures/manifest.json` records comparison blocks, conditions, thread IDs, and accounting expectations.
+Polling comes from current-pstack in the 2026-10-24 `t3FYKH` block; interruptible waits come from the unchanged Luna-medium current-pstack run in `NH9OXl`.
+Automatic results come from without-pstack in the earlier `TGxOu4` block. Earlier overlapping planning recordings remain in Git history.
+Active-worker waits request ten seconds; interruptible waits request one hour and return early on results.
+Automatic results demonstrate delivery without explicit waits while the parent still uses inference.
+
+Fixtures retain tool identities, independent tool calls, timestamps, lifecycle events, message kinds, parent and turn boundaries, model settings, and recorded token usage.
+They omit tool payloads, reports, instructions, reasoning, credentials, local paths, and personal metadata.
+Sanitization preserves the tool and message boundaries used by the measurements.
+
+Derived `proxy_request` rows identify actual parent inference request starts and are distinct from native rollout events.
+Native `token_usage_record` rows retain response IDs and per-response usage; `token_count` retains last and cumulative usage.
+Do not count token updates as requests or sum cumulative counters as costs.
+The sources retain 9 usage records for 10 polling requests, 14 for 14 interruptible requests, and 6 for 7 automatic-result requests.
+Missing per-response usage remains unknown. Total parent requests do not estimate wasted inference.
 
 To sanitize another saved controlled run:
 
@@ -102,118 +114,112 @@ To sanitize another saved controlled run:
 bun tools/codex/sanitize-waits.mjs parent-rollout.jsonl controlled-workers.json fixture.jsonl
 ```
 
-## Iterate from a saved baseline
+## Validate local CLI mailbox delivery
 
-The default entry runs `current-pstack` once against the checkout where it is invoked.
-It keeps parent inference real and serves worker responses through a local provider proxy.
-
-At completion, the console prints observation validity, wait/timeout counts, empty waits, short-wait retries, parent inference request count, worker overlap, and individual wait durations and worker states. The same summary is saved as `<condition>.txt` beside the trial JSON. A valid observation can contain undesirable waits; total parent requests are not an estimate of wasted inference.
-
-Each observation saves `skill-exposure.md` and `skill-exposure.json` in its artifact directory; the console summary links the JSON evidence.
-That report lists installed skill files, references, and generated prompt shortcuts whose content appeared in parent tool responses, with trace row indices and whether exposure preceded delegation.
-`skill-exposure.json` adds installed file hashes, call IDs, tool arguments, matched source line numbers, and the raw trace path. The trial summary links this report and lists observed paths.
-Full content matches and partial matches on lines unique to a file are distinguished. A path mentioned in a command alone does not count.
-Files without identifiable exposure are listed separately; shared or transformed excerpts may not be attributable. These reports measure delivered content, not comprehension or guaranteed filesystem access, and cover the parent only.
+Run the scripted provider test without credentials or inference:
 
 ```powershell
-bun test ./benchmarks/codex/waiting-controlled.mjs
+$env:PSTACK_CODEX_LOCAL = "1"
+bun test tests/codex/integration/local-mailbox.test.mjs
+Remove-Item Env:PSTACK_CODEX_LOCAL
 ```
 
-Record the unchanged reproduction branch once and retain the printed result directory as the baseline.
-Implement skill changes in a separate fix branch or worktree based on the reproduction commit.
-Run the same command in that worktree to measure only the candidate; it does not rerun a baseline or patch the skill instructions.
-Start with one candidate observation per edit. Repeat promising or ambiguous observations deliberately, using Bun's `--rerun-each` when needed.
+The test scripts the parent and one worker and retains its artifact directory.
+It checks actual namespaced `collaboration.send_message` execution, empty-string tool acknowledgments, and later final delivery on the installed CLI.
+Its forwarding stub rejects unhydrated encrypted synthetic messages while confirming that the original rollout retains the encrypted delivery.
+This proves the local CLI path used by the mailbox benchmark, separately from deterministic proxy tests.
 
-Reuse baseline results while the task, parent model and effort, worker timing profile, and Codex runtime remain unchanged.
-Refresh the baseline when those conditions change or a confirmation run is justified.
-The no-plugin control is a separate, optional command, not the previous revision of pstack:
+## Compare a candidate with a saved baseline
 
-```powershell
-bun test ./benchmarks/codex/waiting-control.mjs
-```
+Each entry runs one observation. Select the mode explicitly:
 
-Run full inference only when calibrating against real reviewer behavior:
-
-```powershell
-bun test ./benchmarks/codex/waiting-full-inference.mjs
-```
-
-The entry files share the workload and validation in `benchmarks/codex/support/waiting-suite.mjs`, using different session helpers or selecting the no-plugin control at registration time.
-They share the task, reviewer settings, assertions, and report format. No environment variable selects the mode.
-
-| Test | Assigned instructions |
+| Command | Mode and inference cost |
 | --- | --- |
-| `without-pstack` | No plugin installed or activated. |
-| `current-pstack` | The current checkout, with its unmodified interrogate workflow and runtime mapping. It is the original behavior on the reproduction branch and the candidate on a fix branch. |
+| `bun test ./benchmarks/codex/waiting-controlled.mjs` | Current checkout, scheduled local worker responses; only parent inference goes upstream. Requires ChatGPT credentials. |
+| `bun test ./benchmarks/codex/waiting-mailbox.mjs` | Current checkout, two scheduled progress messages per worker with the same final deadlines; only parent inference goes upstream. Requires ChatGPT credentials. |
+| `bun test ./benchmarks/codex/waiting-control.mjs` | Optional no-plugin control with local workers; only parent inference goes upstream. Requires ChatGPT credentials. |
+| `bun test ./benchmarks/codex/waiting-full-inference.mjs` | Current checkout with real reviewers for occasional calibration; all four agents use inference. Requires Codex credentials. |
 
-All cases ask three independent reviewers to check two mathematical claims supplied entirely in the prompt.
-Claim A gives an exact count of integers divisible by exactly three of ten specified primes.
-Claim B incorrectly applies a linear binary-string count to a labeled circle.
-The parent consolidates findings as they arrive and returns proofs and corrected counts after receiving all three reviewers' results.
-Every session starts with an empty workspace. No task files or external sources are supplied.
-The baseline receives no pstack instructions or documents.
-The current-checkout case invokes `interrogate` without explicitly requesting a mapping read; the workflow itself directs that read.
-Recorded behavior fixtures are available for detector replay and are not inputs to this task.
+The tiny entry files select modes through `benchmarks/codex/support/waiting-suite.mjs`; no environment variable selects a mode.
+Record the unchanged reproduction branch once and retain its printed result directory.
+Make changes in a separate branch or worktree based on that commit, then run the same command there. The benchmark never patches installed skill instructions or wait mappings.
+Reuse the baseline while the task, parent model and effort, worker schedule, and runtime remain unchanged.
+Start with one candidate observation per edit. Repeat promising or ambiguous results deliberately, using Bun's `--rerun-each` when needed.
+Refresh a baseline when conditions change or confirmation is justified.
 
-In the default mode, the proxy identifies workers using Codex's request metadata, outside the model conversation.
-Only root inference and model-catalog requests are forwarded to the authenticated ChatGPT backend.
-Worker model names remain unchanged, but the named reviewer models do not run.
-Each worker receives the same scripted mathematical report after its assigned delay.
-Spawning, waiting, worker completion, and result delivery still pass through Codex.
-The prompts contain no proxy or timing instructions.
+The parent requests three independent reviews of two mathematical claims supplied entirely in the prompt, then consolidates all required reviewer results.
+Claim A counts integers divisible by exactly three of ten primes. Claim B incorrectly applies a linear binary-string count to a labeled circle.
+Sessions start with empty workspaces and receive no task files or external sources. Recorded behavior fixtures are not task inputs.
+The no-plugin control receives no pstack instructions or documents. Current-pstack invokes the unchanged `interrogate` workflow without explicitly requesting a mapping read.
+The installed mapping must appear in parent tool output before delegation; activation alone does not prove exposure.
 
-The delays are 74,538 ms for Sol, 56,257 ms for Astra, and 60,591 ms for Luna.
-They come from worker durations in the full-inference current-pstack run at 2026-10-24 12:06 UTC, comparison block `pstack-review-results-O2tGRE`.
-Each delay begins when the proxy receives that worker's first inference request; it does not fix absolute spawn or completion times.
-Every condition uses the same delays. OS scheduling, parent inference, and notification delivery can still vary.
-The proxy records intended delays and actual release times in `controlled-workers.json`.
-Unsupported or repeated worker requests fail instead of falling back to paid inference.
-Each session permits at most 30 parent inference requests and disables automatic request and stream retries.
-Each controlled trial asserts three local worker responses, successful real parent inference, and zero upstream worker requests.
-
-The benchmark never patches the installed skill instructions or wait mapping.
-The current-checkout case must receive its installed mapping in parent tool output before delegation.
-Skill activation alone does not establish mapping exposure.
-
-Tests assert execution, delegation, worker model and effort, final-answer checks, trace completeness, and instruction exposure.
-They require three overlapping reviewers and an observed message from each, and prohibit further delegation.
-Automatic final notifications are recorded separately; a reviewer can deliver its findings in an ordinary message.
-They record empty waits, timeouts, retry counts, individual waits, and worker durations as outcomes, without requiring zero polling.
-A test passing means the observation is usable; it does not establish that polling is fixed or that pstack caused it.
-The answer checks require the correct counts, `132057411984` and `79068200083062153040`.
-Ordinary commas and LaTeX thin-space separators (`\,`) are accepted.
-Inspect the saved answer and reviewer reports for substantive proof accuracy; number presence alone does not validate the proofs.
-
-Each invocation prints a result directory containing the condition's JSON file and `run.json`.
-The report is complete when that one observation is valid; it does not require control runs.
-It retains invalid observations and their errors. Compare saved baseline and candidate reports rather than regenerating baselines for every edit.
-The report records the common task hash, reviewer panel, installed skill and mapping hashes, and actual mapping exposure before delegation and waiting.
-It also records `workerMode`; controlled trials include routing and timing evidence in `workerControl`.
-Compare instruction conditions within one mode rather than combining controlled and full-inference observations.
-Each result links to its raw parent and worker rollouts, prompt, final answer, CLI version, source revision, and plugin diff.
-Artifacts remain available after successful runs; copied credentials are removed.
-
-Compare repeated outcomes and worker durations before interpreting count differences.
-A short worker run with no polling opportunity cannot establish that a change fixed polling.
-Comparing current pstack with the optional no-plugin control examines activation on this task.
-An improvement on the fix branch supports that candidate on this task; it does not prove pstack caused the original polling.
-Scripted reports can change parent behavior relative to real reviews. The full-inference entry provides calibration for that limitation.
-Single observations can vary; repeat only when the evidence warrants the additional inference.
-
-The parent defaults are `gpt-6.1-sol` and `low`.
-Existing `PSTACK_CODEX_LIVE_MODEL` and `PSTACK_CODEX_WAIT_EFFORT` settings override the parent for all conditions.
-All conditions use the same fixed reviewer panel: `gpt-6.1-sol @xhigh`, `gpt-6-astra @medium`, and `gpt-6-luna @max`.
-These settings reproduced short retries in the full-cost run; reviewer settings do not vary with the parent's overrides.
-In default controlled mode these are worker identities and schedule selectors, not paid reviewer inference.
+The parent defaults to `gpt-6.1-sol @low`. `PSTACK_CODEX_LIVE_MODEL` and `PSTACK_CODEX_WAIT_EFFORT` override it across conditions.
+The fixed reviewer panel is `gpt-6.1-sol @xhigh`, `gpt-6-astra @medium`, and `gpt-6-luna @max`.
+These are worker identities and schedule selectors in controlled modes; the named reviewer models run only in full-inference mode.
 Hooks remain disabled to isolate explicit activation.
+
+### Preserve routing and message controls
+
+The controlled proxy identifies workers through Codex request metadata outside the conversation.
+Only root inference and model-catalog requests reach the authenticated ChatGPT backend. Unsupported worker requests fail instead of falling back to paid inference.
+Each worker receives the same scripted mathematical report after its assigned delay. Codex handles spawning, waiting, lifecycle completion, and delivery.
+Prompts contain no proxy or timing instructions.
+
+The Sol, Astra, and Luna delays are 74,538 ms, 56,257 ms, and 60,591 ms.
+They come from the full-inference current-pstack run at 2026-10-24 12:06 UTC in `pstack-review-results-O2tGRE`.
+Each delay begins at that worker's first inference request. Actual spawning, parent inference, OS scheduling, and notification delivery can vary.
+`controlled-workers.json` records intended delays and actual releases.
+The mailbox schedule adds progress at 10,000 ms and 25,000 ms after each worker's first request. Only this scripted schedule establishes that the ordinary messages contain progress.
+Compare mailbox observations with the same schedule and keep the silent baseline separate.
+
+Mailbox workers issue actual advertised `collaboration.send_message` calls to `/root`.
+Each call permits one continuation after its successful acknowledgment. Concurrent requests, identity changes, missing acknowledgments, and replay-only acknowledgments fail.
+The proxy supports the namespaced Responses `additional_tools` schema advertised by Codex CLI 0.163.0. Unrecognized schemas fail closed.
+That CLI delivers synthetic progress arguments as encrypted mailbox content that the upstream backend cannot hydrate.
+Before parent inference, the proxy restores only its own released progress text, binding mailbox IDs to each worker's emitted schedule order.
+IDs, authors, recipients, runtime delivery, and plaintext final reports stay intact. Unknown messages remain unchanged.
+Malformed synthetic progress and messages beyond the released schedule fail before forwarding.
+Control evidence records hydrated IDs and schedule indices without ciphertext.
+
+Each session permits at most 30 parent inference requests and disables automatic request and stream retries.
+Silent controlled observations require three local responses, successful parent inference, and zero upstream worker requests.
+Mailbox observations require nine local responses, two acknowledged progress calls per worker, and each worker's final answer.
+These checks retain the no-paid-fallback guarantee and validate actual forwarding rather than simulated delivery alone.
+
+### Interpret reports and comparison limits
+
+Tests require execution, delegation, assigned models and efforts, instruction exposure, trace completeness, three overlapping reviewers, a message from each, and no further delegation.
+Required reviewer results are declared. Independent work availability is not inferred, so scenario assessments generally remain unknown without explicit evidence.
+Automatic final notifications are recorded separately; an ordinary message can deliver a reviewer's findings.
+Answer checks look for `132057411984` and `79068200083062153040`, accepting commas and LaTeX thin spaces `\,`.
+These counts are smoke checks. Inspect the saved answer and reviewer reports to assess proof accuracy.
+Passing means the observation is usable; it does not establish that polling is fixed, that inference was wasted, or that pstack caused the behavior.
+
+Each invocation prints a directory containing the condition JSON, `run.json`, and a text summary.
+Reports separate validity, trace facts, and explicit assessments, with wait durations, entry states, nearby messages, timeouts, parent requests, and worker overlap.
+Invalid observations and their errors are retained. Successful runs also retain artifacts; copied credentials are removed.
+Results link raw parent and worker rollouts, the prompt, final answer, CLI version, revision, and plugin diff.
+They record the task hash, reviewer panel, installed skill and mapping hashes, mapping exposure before delegation and waiting, and `workerMode`.
+Controlled results include routing, timing, schedule, progress counts, and final-delivery evidence in `workerControl`.
+
+`skill-exposure.md` and `skill-exposure.json` list installed skills, references, and generated shortcuts whose content appears in parent tool responses.
+Evidence includes trace rows, exposure before delegation, installed hashes, call IDs, arguments, matched source lines, and the raw trace path.
+Full matches and partial matches on file-unique lines are distinct. A path mention alone does not count.
+Unidentified exposure stays separate because shared or transformed excerpts may be unattributable.
+These reports measure content delivered to the parent, not comprehension or guaranteed filesystem access.
+
+Compare repeated outcomes and worker durations within one mode. A short run without a polling opportunity cannot establish that a change fixed polling.
+The no-plugin control examines activation on this task; a candidate improvement supports that candidate on this task.
+Neither comparison proves that pstack caused the original behavior. Scripted reports can affect the parent differently from real reviews, which limits controlled observations.
+Use full inference for occasional calibration and repeat only when the evidence justifies additional cost.
 
 ## Calibrate after a trace-format change
 
-Run this diagnostic only when checking that the detector recognizes the host's live empty-wait events.
+Run this paid diagnostic only to check recognition of live waits with no outstanding tracked work:
 
 ```powershell
-bun test ./benchmarks/codex/empty-wait-calibration.mjs
+bun test ./benchmarks/codex/no-work-wait-calibration.mjs
 ```
 
-It deliberately requests one empty wait and verifies the captured timeout.
+It deliberately requests one wait without spawning workers and verifies the captured timeout.
 It installs no pstack plugin and provides no evidence of spontaneous polling or pstack causation.

@@ -1,0 +1,5 @@
+[
+  { "callId": "first", "requiredAgents": ["/root/synthetic_worker"], "independentWork": "exhausted" },
+  { "callId": "second", "requiredAgents": ["/root/synthetic_worker"], "independentWork": "exhausted" },
+  { "callId": "third", "requiredAgents": ["/root/synthetic_worker"], "independentWork": "exhausted" }
+]

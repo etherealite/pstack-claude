@@ -1,0 +1,16 @@
+{"timestamp":"2026-10-25T00:00:00.000Z","type":"session_meta","payload":{"id":"synthetic-parent","fixture_kind":"synthetic"}}
+{"timestamp":"2026-10-25T00:00:00.000Z","type":"event_msg","payload":{"type":"task_started"}}
+{"timestamp":"2026-10-25T00:00:00.001Z","type":"response_item","payload":{"type":"function_call","namespace":"collaboration","name":"spawn_agent","call_id":"spawn","arguments":"{\"task_name\":\"synthetic_worker\"}"}}
+{"timestamp":"2026-10-25T00:00:00.002Z","type":"event_msg","payload":{"item":{"type":"SubAgentActivity","kind":"started","agent_path":"/root/synthetic_worker","agent_thread_id":"synthetic-thread"}}}
+{"timestamp":"2026-10-25T00:00:00.003Z","type":"response_item","payload":{"type":"function_call_output","call_id":"spawn","output":"{}"}}
+{"timestamp":"2026-10-25T00:00:00.010Z","type":"response_item","payload":{"type":"function_call","namespace":"collaboration","name":"wait_agent","call_id":"first","arguments":"{\"timeout_ms\":10000}"}}
+{"timestamp":"2026-10-25T00:00:00.100Z","type":"response_item","payload":{"type":"function_call_output","call_id":"first","output":"{\"timed_out\":false}"}}
+{"timestamp":"2026-10-25T00:00:00.103Z","type":"response_item","payload":{"type":"agent_message","author":"/root/synthetic_worker","recipient":"/root","content":[{"type":"input_text","text":"Message Type: MESSAGE\nPayload:\n[Synthetic content omitted]"}]}}
+{"timestamp":"2026-10-25T00:00:00.110Z","type":"response_item","payload":{"type":"function_call","namespace":"collaboration","name":"wait_agent","call_id":"second","arguments":"{\"timeout_ms\":10000}"}}
+{"timestamp":"2026-10-25T00:00:00.200Z","type":"response_item","payload":{"type":"agent_message","author":"/root/synthetic_worker","recipient":"/root","content":[{"type":"input_text","text":"Message Type: MESSAGE\nPayload:\n[Synthetic content omitted]"}]}}
+{"timestamp":"2026-10-25T00:00:00.201Z","type":"response_item","payload":{"type":"function_call_output","call_id":"second","output":"{\"timed_out\":false}"}}
+{"timestamp":"2026-10-25T00:00:00.210Z","type":"response_item","payload":{"type":"function_call","namespace":"collaboration","name":"wait_agent","call_id":"third","arguments":"{\"timeout_ms\":10000}"}}
+{"timestamp":"2026-10-25T00:00:00.300Z","type":"event_msg","payload":{"item":{"type":"SubAgentActivity","kind":"completed","agent_path":"/root/synthetic_worker","agent_thread_id":"synthetic-thread"}}}
+{"timestamp":"2026-10-25T00:00:00.301Z","type":"response_item","payload":{"type":"function_call_output","call_id":"third","output":"{\"timed_out\":false}"}}
+{"timestamp":"2026-10-25T00:00:00.303Z","type":"response_item","payload":{"type":"agent_message","author":"/root/synthetic_worker","recipient":"/root","content":[{"type":"input_text","text":"Message Type: FINAL_ANSWER\nPayload:\n[Synthetic content omitted]"}]}}
+{"timestamp":"2026-10-25T00:00:00.310Z","type":"event_msg","payload":{"type":"task_complete"}}

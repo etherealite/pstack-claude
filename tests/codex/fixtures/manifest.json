@@ -8,17 +8,6 @@
     "cliVersion": "0.163.0",
     "model": "gpt-6.1-sol",
     "effort": "low",
-    "spawns": 3,
-    "waits": 3,
-    "requestedTimeoutsMs": [
-      10000,
-      10000,
-      10000
-    ],
-    "timedOutWaits": 1,
-    "shortWaitRetries": 1,
-    "emptyWaits": 0,
-    "deliveredFinalAnswers": 3,
     "parentRequests": 10,
     "responseUsageRecords": 9,
     "finalTokenUsage": {
@@ -39,17 +28,6 @@
     "cliVersion": "0.163.0",
     "model": "gpt-6-luna",
     "effort": "medium",
-    "spawns": 3,
-    "waits": 3,
-    "requestedTimeoutsMs": [
-      3600000,
-      3600000,
-      3600000
-    ],
-    "timedOutWaits": 0,
-    "shortWaitRetries": 0,
-    "emptyWaits": 0,
-    "deliveredFinalAnswers": 3,
     "parentRequests": 14,
     "responseUsageRecords": 14,
     "finalTokenUsage": {
@@ -70,13 +48,6 @@
     "cliVersion": "0.163.0",
     "model": "gpt-6.1-sol",
     "effort": "low",
-    "spawns": 3,
-    "waits": 0,
-    "requestedTimeoutsMs": [],
-    "timedOutWaits": 0,
-    "shortWaitRetries": 0,
-    "emptyWaits": 0,
-    "deliveredFinalAnswers": 3,
     "parentRequests": 7,
     "responseUsageRecords": 6,
     "finalTokenUsage": {

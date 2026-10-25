@@ -9,13 +9,13 @@ export function sanitizeWaitTrace(source, observations = []) {
   const rows = source.flatMap(row => {
     const p = row.payload;
     let payload;
-    if (row.type === "session_meta") payload = pick(p, ["id", "cli_version"]);
+    if (row.type === "session_meta") payload = pick(p, ["id", "cli_version", "fixture_kind"]);
     else if (row.type === "turn_context") payload = pick(p, ["turn_id", "model", "effort", "reasoning_effort"]);
     else if (row.type === "token_usage_record") {
       payload = pick(p, ["thread_id", "turn_id", "session_id", "root_turn_id", "response_id"]);
       for (const key of ["usage", "turn_token_usage", "thread_token_usage"]) if (p[key]) payload[key] = pick(p[key], tokenKeys);
     } else if (row.type === "event_msg") {
-      if (["task_started", "task_complete", "turn_aborted"].includes(p.type)) payload = pick(p, ["type", "turn_id"]);
+      if (["task_started", "task_complete", "turn_aborted", "user_message"].includes(p.type)) payload = pick(p, ["type", "turn_id"]);
       else if (p.item?.type === "SubAgentActivity") payload = {
         type: p.type, item: pick(p.item, ["type", "id", "kind", "agent_thread_id", "agent_path", "model", "reasoning_effort"]),
       };
@@ -37,7 +37,8 @@ export function sanitizeWaitTrace(source, observations = []) {
       };
       else if (p.type === "agent_message") {
         const text = p.content?.map(part => part.text || "").join("\n") || "";
-        const kind = text.startsWith("Message Type: FINAL_ANSWER") ? "FINAL_ANSWER" : "MESSAGE";
+        const kind = /^Message Type: FINAL_ANSWER(?:\r?\n|$)/.test(text) ? "FINAL_ANSWER"
+          : /^Message Type: MESSAGE(?:\r?\n|$)/.test(text) ? "MESSAGE" : "UNKNOWN";
         payload = { ...pick(p, ["type", "author", "recipient"]), content: [{ type: "input_text", text: `Message Type: ${kind}\nPayload:\n[Report omitted]` }] };
       } else if (p.type === "message") payload = {
         ...pick(p, ["type", "id", "role", "phase"]), content: [{ type: "input_text", text: "[Message omitted]" }],
