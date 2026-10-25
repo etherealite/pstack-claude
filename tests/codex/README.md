@@ -14,10 +14,12 @@ benchmarks/codex/
   waiting-full-inference.mjs
   empty-wait-calibration.mjs
   support/waiting-suite.mjs
+  support/waiting-report.mjs
 tools/codex/
   replay-waits.mjs
   sanitize-waits.mjs
   lib/wait-trace.mjs
+  lib/skill-exposure.mjs
 ```
 
 Files ending in `.test.mjs` are test suites. `harness`, `support`, and `lib` hold imported helpers.
@@ -30,6 +32,8 @@ Files directly under `benchmarks/codex` are explicitly selected model runs; file
 | `wait-trace.test.mjs` | Agent states, pending delivery, empty waits, short retries, and incomplete traces. | Bun. |
 | `replay-waits.test.mjs` | Replay CLI output and exit codes. | Bun. |
 | `sanitize-waits.test.mjs` | Fixture redaction preserves classifications, request boundaries, and recorded token usage. | Bun. |
+| `skill-exposure.test.mjs` | Skill content matching, partial excerpts, call evidence, and exclusion of mere path mentions. | Bun. |
+| `waiting-report.test.mjs` | Console metrics preserve undesirable behavior and distinguish missing measurements from zero. | Bun. |
 | `integration/installation.test.mjs` | Real plugin installation preserves skill source. | Codex CLI and existing `PSTACK_CODEX_INSTALL=1`. |
 | `integration/live.test.mjs` | A generated native plugin invokes its installed skill. | Codex credentials and existing `PSTACK_CODEX_LIVE=1`. |
 | `benchmarks/codex/waiting-controlled.mjs` | One current-checkout observation with scheduled local worker responses. | ChatGPT credentials and explicit file selection; only parent inference goes upstream. |
@@ -102,6 +106,14 @@ bun tools/codex/sanitize-waits.mjs parent-rollout.jsonl controlled-workers.json 
 
 The default entry runs `current-pstack` once against the checkout where it is invoked.
 It keeps parent inference real and serves worker responses through a local provider proxy.
+
+At completion, the console prints observation validity, wait/timeout counts, empty waits, short-wait retries, parent inference request count, worker overlap, and individual wait durations and worker states. The same summary is saved as `<condition>.txt` beside the trial JSON. A valid observation can contain undesirable waits; total parent requests are not an estimate of wasted inference.
+
+Each observation saves `skill-exposure.md` and `skill-exposure.json` in its artifact directory; the console summary links the JSON evidence.
+That report lists installed skill files, references, and generated prompt shortcuts whose content appeared in parent tool responses, with trace row indices and whether exposure preceded delegation.
+`skill-exposure.json` adds installed file hashes, call IDs, tool arguments, matched source line numbers, and the raw trace path. The trial summary links this report and lists observed paths.
+Full content matches and partial matches on lines unique to a file are distinguished. A path mentioned in a command alone does not count.
+Files without identifiable exposure are listed separately; shared or transformed excerpts may not be attributable. These reports measure delivered content, not comprehension or guaranteed filesystem access, and cover the parent only.
 
 ```powershell
 bun test ./benchmarks/codex/waiting-controlled.mjs

@@ -6,6 +6,8 @@ import { mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { analyzeWaitTrace } from "../../../tools/codex/lib/wait-trace.mjs";
+import { analyzeSkillExposure, catalogSkillFiles, formatSkillExposure } from "../../../tools/codex/lib/skill-exposure.mjs";
+import { formatWaitingReport } from "./waiting-report.mjs";
 
 const repo = fileURLToPath(new URL("../../../", import.meta.url));
 const model = process.env.PSTACK_CODEX_LIVE_MODEL || "gpt-6.1-sol";
@@ -59,15 +61,23 @@ export function defineWaitingTests({ withSession, workerMode, control = false })
       throw error;
     } finally {
       writeFileSync(join(report, `${condition}.json`), JSON.stringify(trial, null, 2));
+      const summary = formatWaitingReport(trial);
+      writeFileSync(join(report, `${condition}.txt`), summary + "\n");
+      console.log(summary);
     }
   }
 
-  async function observeReview({ root, exec, session, trial }, prompt) {
+  async function observeReview({ root, exec, session, trial }, prompt, skillFiles = []) {
     writeFileSync(join(root, "prompt.txt"), prompt);
     const output = await exec(prompt, { multiAgent: true, timeout: 480_000, model, effort });
     const events = output.trim().split(/\r?\n/).map(JSON.parse);
     const thread = events.find(event => event.type === "thread.started")?.thread_id;
     const trace = session(thread);
+    const exposure = { trace: trace.path, ...analyzeSkillExposure(trace.rows, skillFiles) };
+    const inventory = join(root, "skill-exposure.json");
+    writeFileSync(inventory, JSON.stringify(exposure, null, 2));
+    writeFileSync(join(root, "skill-exposure.md"), formatSkillExposure(exposure));
+    trial.skillExposure = { report: inventory, observedFiles: exposure.files.filter(file => file.exposures.length).map(file => file.path) };
     const result = analyzeWaitTrace(trace.rows);
     const activity = trace.rows.filter(row => row.type === "event_msg" && row.payload?.item?.type === "SubAgentActivity");
     const starts = activity.filter(row => row.payload.item.kind === "started");
@@ -121,7 +131,7 @@ export function defineWaitingTests({ withSession, workerMode, control = false })
     const skill = join(installed.installedPath, "skills/interrogate/SKILL.md").replaceAll("\\", "/");
     const tools = join(installed.installedPath, "skills/poteto-mode/references/codex-tools.md").replaceAll("\\", "/");
     trial.skillSha256 = createHash("sha256").update(readFileSync(skill)).digest("hex");
-    return { skill, tools };
+    return { skill, tools, skillFiles: catalogSkillFiles(installed.installedPath) };
   }
 
   function pstackPrompt(skill) {
@@ -168,9 +178,9 @@ export function defineWaitingTests({ withSession, workerMode, control = false })
 
     else test("current-pstack", async () => {
       await withReviewSession("current-pstack", async context => {
-        const { skill, tools } = await installPstack(context);
+        const { skill, tools, skillFiles } = await installPstack(context);
         const original = readFileSync(tools, "utf8");
-        const trace = await observeReview(context, pstackPrompt(skill));
+        const trace = await observeReview(context, pstackPrompt(skill), skillFiles);
         recordExposure(context, trace, original);
       });
     }, 540_000);
